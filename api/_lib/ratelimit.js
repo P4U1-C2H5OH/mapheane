@@ -32,4 +32,7 @@ const newsletterLimit = makeLimiter('rl:newsletter', 10, '1 h');
 /** 3 requests per IP per hour — order submission */
 const ordersLimit     = makeLimiter('rl:orders',     3,  '1 h');
 
-module.exports = { getIp, contactLimit, newsletterLimit, ordersLimit };
+/** 20 requests per IP per hour — order tracking (public ref lookup) */
+const trackLimit      = makeLimiter('rl:track',      20, '1 h');
+
+module.exports = { getIp, contactLimit, newsletterLimit, ordersLimit, trackLimit };

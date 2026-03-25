@@ -200,17 +200,36 @@ function TierCard({ tier, billing, onJoin }: { tier: Tier; billing: 'monthly' | 
 }
 
 function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
-  const [email, setEmail] = useState('');
-  const [name,  setName]  = useState('');
-  const [done,  setDone]  = useState(false);
+  const [email,   setEmail]   = useState('');
+  const [name,    setName]    = useState('');
+  const [done,    setDone]    = useState(false);
   const [sending, setSending] = useState(false);
+  const [error,   setError]   = useState('');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim() || !email.trim()) return;
     setSending(true);
-    await new Promise(r => setTimeout(r, 900));
-    setSending(false);
-    setDone(true);
+    setError('');
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          type: 'General',
+          message: `Collector's Circle interest — ${tier.name} tier. Please send membership details and payment instructions.`,
+          trap: '',
+        }),
+      });
+      if (!res.ok) throw new Error('Submission failed');
+      setDone(true);
+    } catch {
+      setError('Something went wrong. Please email hello@mapheane.art directly.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -266,6 +285,7 @@ function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
                   <div className="bg-parchment/50 border border-charcoal/8 p-4 text-xs text-muted leading-relaxed">
                     Payment details will be sent to you via email. Membership activates on receipt of first payment. Cancel anytime.
                   </div>
+                  {error && <p className="text-xs text-red-400">{error}</p>}
                   <button type="submit" disabled={sending || !email || !name}
                     className="w-full flex items-center justify-center gap-2 py-3.5 text-xs font-sans uppercase tracking-[0.2em] text-background transition-colors disabled:opacity-50"
                     style={{ background: tier.color }}>

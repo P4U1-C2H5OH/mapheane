@@ -23,40 +23,6 @@ interface TrackResult {
   estimatedDelivery?: string;
 }
 
-// Simulated order lookup — replace with API call
-const MOCK_ORDERS: Record<string, TrackResult> = {
-  'MAP-X4R2TY': {
-    ref: 'MAP-X4R2TY',
-    status: 'verified',
-    customer: 'Tsepiso Mokhehle',
-    items: [{ title: 'Terre Rouge (Étude)', medium: 'Mixed media on resin canvas' }],
-    total: 58050,
-    fulfilment: 'delivery',
-    estimatedDelivery: 'Within 2–3 working days',
-    timeline: [
-      { status: 'pending',    label: 'Order received',     date: 'Today, 14:32',      done: true  },
-      { status: 'verified',   label: 'Payment verified',   date: 'Today, 16:05',      done: true  },
-      { status: 'dispatched', label: 'Dispatched',         date: 'Pending',           done: false },
-      { status: 'delivered',  label: 'Delivered',          date: 'Est. 2–3 days',     done: false },
-    ],
-  },
-  'MAP-K9L5MQ': {
-    ref: 'MAP-K9L5MQ',
-    status: 'dispatched',
-    customer: 'Nomvula Khumalo',
-    items: [{ title: 'Edition 7 — "Regard"', medium: 'Giclée print on Hahnemühle' }],
-    total: 4950,
-    fulfilment: 'delivery',
-    tracking: 'DHL: 1234567890',
-    estimatedDelivery: 'Tomorrow – Friday',
-    timeline: [
-      { status: 'pending',    label: 'Order received',   date: 'Yesterday, 09:12', done: true  },
-      { status: 'verified',   label: 'Payment verified', date: 'Yesterday, 11:30', done: true  },
-      { status: 'dispatched', label: 'Dispatched',       date: 'Today, 08:45',     done: true  },
-      { status: 'delivered',  label: 'Delivered',        date: 'Est. tomorrow',    done: false },
-    ],
-  },
-};
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string; Icon: any }> = {
   pending:    { label: 'Awaiting verification', color: '#A0522D', bg: 'rgba(160,82,45,0.08)',  Icon: Clock       },
@@ -76,15 +42,21 @@ export function OrderTrackingPage({ onNavigate }: Props) {
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ref.trim()) return;
+    const normalized = ref.trim().toUpperCase();
+    if (!normalized) return;
     setLoading(true);
     setNotFound(false);
     setResult(null);
-    await new Promise(r => setTimeout(r, 600));
-    const found = MOCK_ORDERS[ref.trim().toUpperCase()];
-    setLoading(false);
-    if (found) { setResult(found); }
-    else { setNotFound(true); }
+    try {
+      const res = await fetch(`/api/track?ref=${encodeURIComponent(normalized)}`);
+      if (res.status === 404) { setNotFound(true); return; }
+      if (!res.ok) throw new Error('Lookup failed');
+      setResult(await res.json());
+    } catch {
+      setNotFound(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const PIPELINE: OrderStatus[] = ['pending', 'verified', 'dispatched', 'delivered'];
