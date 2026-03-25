@@ -77,9 +77,9 @@ const pt = { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, n
 // ── Inner app (needs context access for useExitIntent) ────────────────────────
 function AppInner() {
   const [page,       setPage]       = useState<PageName>('home');
-  const [artworkId,  setArtworkId]  = useState<number | null>(null);
-  const [momentId,   setMomentId]   = useState<number | null>(null);
-  const [eventId,    setEventId]    = useState<number | null>(null);
+  const [artworkId,  setArtworkId]  = useState<string | null>(null);
+  const [momentId,   setMomentId]   = useState<string | null>(null);
+  const [eventId,    setEventId]    = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
 
@@ -87,14 +87,14 @@ function AppInner() {
     setPage(p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const goArtwork = (id: number) => { setArtworkId(id); go('artwork'); };
-  const goMoment  = (id: number) => { setMomentId(id);  go('moment-detail'); };
-  const goEvent   = (id: number) => { setEventId(id);   go('event-detail'); };
+  const goArtwork = (id: string) => { setArtworkId(id); go('artwork'); };
+  const goMoment  = (id: string) => { setMomentId(id);  go('moment-detail'); };
+  const goEvent   = (id: string) => { setEventId(id);   go('event-detail'); };
 
   const isAdmin = page === 'admin';
 
-  // Exit intent → newsletter modal
-  useExitIntent({ onTrigger: () => setNewsletter(true), delay: 10000 });
+  // Exit intent → newsletter modal (suppressed in admin)
+  useExitIntent({ onTrigger: () => { if (!isAdmin) setNewsletter(true); }, delay: 10000 });
 
   return (
     <div className="min-h-screen bg-background text-charcoal overflow-x-hidden selection:bg-terracotta/15 selection:text-terracotta">
@@ -108,8 +108,8 @@ function AppInner() {
         onSelectMoment={goMoment}
         onSelectEvent={goEvent}
       />
-      <NewsletterModal isOpen={newsletter} onClose={() => setNewsletter(false)} />
-      <CookieBanner onNavigate={go} />
+      {!isAdmin && <NewsletterModal isOpen={newsletter} onClose={() => setNewsletter(false)} />}
+      {!isAdmin && <CookieBanner onNavigate={go} />}
 
       {/* Navigation */}
       {!isAdmin && (
@@ -179,21 +179,76 @@ function AppInner() {
   );
 }
 
+// ── Error boundary — catches render crashes after bad deployments ─────────────
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  handleReset = () => {
+    // Clear all persisted app state that could be incompatible with a new build
+    ['mapheane-cart', 'mapheane-cart-v2', 'mapheane_wishlist', 'mapheane-user'].forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+    // Clear Supabase session keys
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('sb-'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+    window.location.reload();
+  };
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          minHeight: '100vh', flexDirection: 'column', gap: 16,
+          background: '#FAF7F2', fontFamily: 'DM Sans, sans-serif',
+        }}>
+          <p style={{ color: '#9E9890', fontSize: 13, letterSpacing: '0.05em' }}>
+            Something went wrong loading the studio.
+          </p>
+          <button
+            onClick={this.handleReset}
+            style={{
+              background: '#A0522D', color: '#FAF7F2', border: 'none',
+              padding: '10px 28px', cursor: 'pointer', fontSize: 11,
+              letterSpacing: '0.15em', textTransform: 'uppercase',
+            }}
+          >
+            Clear data &amp; reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ── Root: wrap all providers ───────────────────────────────────────────────────
 export function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <WishlistProvider>
-          <CurrencyProvider>
-            <LanguageProvider>
-              <ToastProvider>
-                <AppInner />
-              </ToastProvider>
-            </LanguageProvider>
-          </CurrencyProvider>
-        </WishlistProvider>
-      </CartProvider>
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <CurrencyProvider>
+              <LanguageProvider>
+                <ToastProvider>
+                  <AppInner />
+                </ToastProvider>
+              </LanguageProvider>
+            </CurrencyProvider>
+          </WishlistProvider>
+        </CartProvider>
+      </AuthProvider>
+    </AppErrorBoundary>
   );
 }

@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, ArrowRight, Image, FileText, Calendar } from 'lucide-react';
-import { artworks } from '../data/artworks';
-import { artistMoments } from '../data/moments';
-import { events } from '../data/events';
+import { useArtworks } from '../hooks/useArtworks';
+import { useMoments } from '../hooks/useMoments';
+import { useEvents } from '../hooks/useEvents';
 
 interface SearchOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (page: any) => void;
-  onSelectArtwork: (id: number) => void;
-  onSelectMoment:  (id: number) => void;
-  onSelectEvent:   (id: number) => void;
+  onSelectArtwork: (id: string) => void;
+  onSelectMoment:  (id: string) => void;
+  onSelectEvent:   (id: string) => void;
 }
 
 interface Result {
@@ -45,6 +45,9 @@ const QUICK_LINKS = [
 ];
 
 export function SearchOverlay({ isOpen, onClose, onNavigate, onSelectArtwork, onSelectMoment, onSelectEvent }: SearchOverlayProps) {
+  const { artworks } = useArtworks();
+  const { moments } = useMoments();
+  const { events } = useEvents();
   const [query, setQuery]     = useState('');
   const [results, setResults] = useState<Result[]>([]);
   const [active, setActive]   = useState(0);
@@ -88,7 +91,7 @@ export function SearchOverlay({ isOpen, onClose, onNavigate, onSelectArtwork, on
         onClick: () => { onSelectArtwork(a.id); onClose(); },
       }));
 
-    const momRes: Result[] = artistMoments
+    const momRes: Result[] = moments
       .filter(m => m.title.toLowerCase().includes(q) || m.excerpt?.toLowerCase().includes(q) || m.tags?.some((t: string) => t.toLowerCase().includes(q)))
       .slice(0, 3)
       .map(m => ({
@@ -109,7 +112,7 @@ export function SearchOverlay({ isOpen, onClose, onNavigate, onSelectArtwork, on
 
     setResults([...artRes, ...momRes, ...evtRes]);
     setActive(0);
-  }, [query]);
+  }, [query, artworks, moments, events]);
 
   return (
     <AnimatePresence>

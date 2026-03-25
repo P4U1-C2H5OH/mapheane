@@ -55,9 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Safety net: if Supabase hangs (stale session, network issue), unblock after 4s
+    const timeout = setTimeout(() => setLoading(false), 4000);
+
     // Restore session on mount — gracefully handle missing/placeholder Supabase credentials
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
+        clearTimeout(timeout);
         if (session) {
           const profile = await fetchProfile(session.user.id);
           setUser(mapUser(session, profile));
@@ -65,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       })
       .catch(() => {
+        clearTimeout(timeout);
         // Supabase not yet configured — app runs in unauthenticated mode
         setLoading(false);
       });
@@ -85,13 +90,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Supabase not yet configured — skip auth listener
     }
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const login = async (email: string, password: string): Promise<User> => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
-    // onAuthStateChange handles setUser
+    const profile = data.session ? await fetchProfile(data.session.user.id) : null;
+    const mappedUser = mapUser(data.session!, profile);
+    setUser(mappedUser);
+    return mappedUser;
   };
 
   const loginWithGoogle = async () => {

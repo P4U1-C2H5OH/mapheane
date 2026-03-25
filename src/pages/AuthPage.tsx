@@ -44,8 +44,8 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
     setLoading(true);
     try {
       if (mode === 'login') {
-        await login(email, password);
-        onNavigate('home');
+        const loggedInUser = await login(email, password);
+        onNavigate(loggedInUser.role === 'admin' ? 'admin' : 'home');
       } else if (mode === 'signup') {
         if (!name.trim()) { setError('Name is required'); setLoading(false); return; }
         await signup(name, email, password);

@@ -2,17 +2,17 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 
 // ─── Types ────────────────────────────────────────────────
 interface WishlistItem {
-  id: number;
+  id: string;
   addedAt: number;
 }
 
 interface WishlistContextValue {
   wishlist: WishlistItem[];
-  wishlistIds: Set<number>;
-  isWishlisted: (id: number) => boolean;
-  addToWishlist: (id: number) => void;
-  removeFromWishlist: (id: number) => void;
-  toggleWishlist: (id: number) => boolean; // returns true if added
+  wishlistIds: Set<string>;
+  isWishlisted: (id: string) => boolean;
+  addToWishlist: (id: string) => void;
+  removeFromWishlist: (id: string) => void;
+  toggleWishlist: (id: string) => boolean; // returns true if added
   clearWishlist: () => void;
   count: number;
 }
@@ -50,20 +50,20 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
   const wishlistIds = new Set(wishlist.map(i => i.id));
 
-  const isWishlisted = useCallback((id: number) => wishlistIds.has(id), [wishlistIds]);
+  const isWishlisted = useCallback((id: string) => wishlistIds.has(id), [wishlistIds]);
 
-  const addToWishlist = useCallback((id: number) => {
+  const addToWishlist = useCallback((id: string) => {
     setWishlist(prev => {
       if (prev.some(i => i.id === id)) return prev;
       return [...prev, { id, addedAt: Date.now() }];
     });
   }, []);
 
-  const removeFromWishlist = useCallback((id: number) => {
+  const removeFromWishlist = useCallback((id: string) => {
     setWishlist(prev => prev.filter(i => i.id !== id));
   }, []);
 
-  const toggleWishlist = useCallback((id: number): boolean => {
+  const toggleWishlist = useCallback((id: string): boolean => {
     let added = false;
     setWishlist(prev => {
       if (prev.some(i => i.id === id)) {

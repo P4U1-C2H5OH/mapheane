@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, MapPin, Clock, Tag as TagIcon, Ticket } from 'lucide-react';
-import { events, Event, EventType } from '../data/events';
+import { useEvents, DbEvent } from '../hooks/useEvents';
+import { EventType } from '../data/events';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 
 interface EventsPageProps {
   onNavigate: (page: any) => void;
-  onSelectEvent: (id: number) => void;
+  onSelectEvent: (id: string) => void;
 }
 
 const eventTypeLabels: Record<EventType, string> = {
@@ -18,14 +19,15 @@ const eventTypeLabels: Record<EventType, string> = {
 };
 
 export function EventsPage({ onNavigate, onSelectEvent }: EventsPageProps) {
+  const { events } = useEvents();
   const [selectedType, setSelectedType] = useState<EventType | 'all'>('all');
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  const filteredEvents = selectedType === 'all' 
-    ? events 
+  const filteredEvents = selectedType === 'all'
+    ? events
     : events.filter(e => e.type === selectedType);
 
   const upcomingEvents = filteredEvents.filter(e => e.status === 'upcoming');
@@ -141,7 +143,7 @@ export function EventsPage({ onNavigate, onSelectEvent }: EventsPageProps) {
 }
 
 interface EventCardProps {
-  event: Event;
+  event: DbEvent;
   index: number;
   onClick: () => void;
 }
@@ -189,7 +191,7 @@ function EventCard({ event, index, onClick }: EventCardProps) {
                 </div>
               )}
               <img
-                src={event.images[0]}
+                src={event.images?.[0] || '/artportfolio.jpg'}
                 alt={event.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />

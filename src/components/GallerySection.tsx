@@ -2,17 +2,19 @@ import { LazyImage } from '../components/LazyImage';
 import React, { useState } from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { Eye, Expand, ArrowRight, Heart } from 'lucide-react';
-import { artworks, Artwork } from '../data/artworks';
+import { Artwork } from '../data/artworks';
+import { useArtworks } from '../hooks/useArtworks';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { QuickViewModal } from './QuickViewModal';
 
 interface GallerySectionProps {
-  onSelectArtwork?: (id: number) => void;
+  onSelectArtwork?: (id: string) => void;
   onViewFullGallery?: () => void;
 }
 
 export function GallerySection({ onSelectArtwork, onViewFullGallery }: GallerySectionProps) {
+  const { artworks } = useArtworks();
   const [quickView, setQuickView] = useState<Artwork | null>(null);
 
   return (

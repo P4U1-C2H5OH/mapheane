@@ -3,17 +3,18 @@ import { useCurrency } from '../context/CurrencyContext';
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, ShoppingBag, X, ArrowRight } from 'lucide-react';
-import { artworks } from '../data/artworks';
+import { useArtworks } from '../hooks/useArtworks';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 
 interface WishlistPageProps {
   onNavigate: (page: any) => void;
-  onSelectArtwork: (id: number) => void;
+  onSelectArtwork: (id: string) => void;
 }
 
 export function WishlistPage({ onNavigate, onSelectArtwork }: WishlistPageProps) {
+  const { artworks } = useArtworks();
   const { wishlist, removeFromWishlist, clearWishlist } = useWishlist();
   const { addToCart } = useCart();
   const { cartAdded, success } = useToast();
@@ -27,7 +28,7 @@ export function WishlistPage({ onNavigate, onSelectArtwork }: WishlistPageProps)
     .filter(Boolean)
     .map(a => a!);
 
-  const handleAddToCart = (artworkId: number) => {
+  const handleAddToCart = (artworkId: string) => {
     const art = artworks.find(a => a.id === artworkId);
     if (art && art.status === 'Available') {
       addToCart(art);

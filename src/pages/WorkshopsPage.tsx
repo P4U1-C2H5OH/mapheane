@@ -3,67 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Calendar, Clock, Users, MapPin,
-  CheckCircle, Star, ChevronDown, ChevronUp, Globe, Plane
+  CheckCircle, ChevronDown, ChevronUp, Globe, Plane
 } from 'lucide-react';
+import { useWorkshops, DbWorkshop } from '../hooks/useWorkshops';
 
 interface WorkshopsPageProps {
   onNavigate: (page: any) => void;
 }
 
-const WORKSHOPS = [
-  {
-    id: 'resin-magic',
-    title: 'Resin Canvas Magic',
-    subtitle: 'Mixed Media Painting',
-    duration: 'Half Day · 4 hours',
-    groupSize: 'Max 8 participants',
-    price: { local: 'R1,400', intl: '$80 USD' },
-    level: 'All Levels',
-    description: 'Discover the alchemy of resin on canvas. Learn layering, colour mixing, and the unpredictable beauty that emerges when mixed media meets resin. You leave with a completed 30×40cm work.',
-    includes: ['All materials & resin canvas', 'Protective gear', 'Light refreshments', 'Take-home artwork', 'Digital technique guide'],
-    accent: 'terracotta',
-    tag: 'Most Popular',
-  },
-  {
-    id: 'expressive-charcoal',
-    title: 'Expressive Charcoal',
-    subtitle: 'Drawing & Mark-Making',
-    duration: 'Half Day · 3 hours',
-    groupSize: 'Max 10 participants',
-    price: { local: 'R1,000', intl: '$60 USD' },
-    level: 'Beginner Friendly',
-    description: 'Charcoal is the most honest medium — raw, responsive, unforgiving, and beautiful for all of it. Learn mark-making, tonal modelling, and the expressive line through exercises drawn from Mapheane\'s own practice.',
-    includes: ['Professional charcoal set', 'A2 cartridge paper', 'Light refreshments', 'Two A3 works to take home', 'Resource booklet'],
-    accent: 'charcoal',
-    tag: null,
-  },
-  {
-    id: 'hands-in-clay',
-    title: 'Hands in Clay',
-    subtitle: 'Stoneware Sculpture',
-    duration: 'Full Day · 7 hours',
-    groupSize: 'Max 6 participants',
-    price: { local: 'R2,100', intl: '$120 USD' },
-    level: 'All Levels',
-    description: 'A full immersion in stoneware — from wedging raw clay through hand-building, surface treatment, and the poetry of imperfect form. Your work is fired and glazed; Mapheane ships it to you 3–4 weeks later.',
-    includes: ['All clay & glazing materials', 'Apron provided', 'Full lunch', 'Kiln firing & glazing', 'Shipping of finished work (SA only)'],
-    accent: 'clay',
-    tag: 'Includes Firing',
-  },
-  {
-    id: 'mixed-media-masterclass',
-    title: 'Mixed Media Masterclass',
-    subtitle: 'Painting, Drawing & Collage',
-    duration: 'Full Day · 6 hours',
-    groupSize: 'Max 8 participants',
-    price: { local: 'R2,700', intl: '$150 USD' },
-    level: 'Intermediate+',
-    description: 'For those ready to go deeper. Spanning painting, drawing, and collage in a single day, this masterclass mirrors Mapheane\'s actual creative process — exploring how disparate mediums can hold a single emotional truth.',
-    includes: ['All materials across three mediums', 'Lunch & snacks', 'Two finished works', 'Recorded Q&A session', 'Digital resources pack'],
-    accent: 'sage',
-    tag: 'Immersive',
-  },
-];
+const ACCENT_CYCLE = ['terracotta', 'charcoal', 'clay', 'sage'] as const;
 
 const RETREATS = [
   {
@@ -116,12 +64,14 @@ const TESTIMONIALS = [
 ];
 
 interface WorkshopCardProps {
-  w: typeof WORKSHOPS[0];
+  w: DbWorkshop;
+  accentIdx: number;
   onBook: () => void;
 }
 
-function WorkshopCard({ w, onBook }: WorkshopCardProps) {
+function WorkshopCard({ w, accentIdx, onBook }: WorkshopCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const accent = ACCENT_CYCLE[accentIdx % ACCENT_CYCLE.length];
   const accentMap: Record<string, string> = {
     terracotta: 'bg-terracotta text-white',
     charcoal:   'bg-charcoal text-white',
@@ -134,6 +84,8 @@ function WorkshopCard({ w, onBook }: WorkshopCardProps) {
     clay:       'border-clay/25 hover:border-clay/50',
     sage:       'border-sage/25 hover:border-sage/50',
   };
+  const tag = w.status === 'full' ? 'Full' : null;
+  const groupSize = `Max ${w.capacity} participants`;
 
   return (
     <motion.div
@@ -141,21 +93,21 @@ function WorkshopCard({ w, onBook }: WorkshopCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-40px' }}
       transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className={`border bg-background transition-all duration-500 ${borderMap[w.accent]}`}
+      className={`border bg-background transition-all duration-500 ${borderMap[accent]}`}
     >
       <div className="p-6 md:p-8">
         {/* Header row */}
         <div className="flex items-start justify-between mb-5">
           <div className="flex-1">
-            {w.tag && (
-              <span className={`text-label uppercase tracking-widest px-2.5 py-1 mb-3 inline-block text-[10px] ${accentMap[w.accent]}`}>
-                {w.tag}
+            {tag && (
+              <span className={`text-label uppercase tracking-widest px-2.5 py-1 mb-3 inline-block text-[10px] ${accentMap[accent]}`}>
+                {tag}
               </span>
             )}
             <h3 className="font-serif text-2xl md:text-3xl italic text-charcoal" style={{ letterSpacing: '-0.01em' }}>
               {w.title}
             </h3>
-            <p className="text-xs font-sans uppercase tracking-widest text-muted mt-1">{w.subtitle}</p>
+            <p className="text-xs font-sans uppercase tracking-widest text-muted mt-1">{w.medium}</p>
           </div>
           <div className="text-right ml-6 flex-shrink-0">
             <p className="font-serif text-xl text-charcoal">{w.price.local}</p>
@@ -166,10 +118,9 @@ function WorkshopCard({ w, onBook }: WorkshopCardProps) {
         {/* Meta row */}
         <div className="flex flex-wrap gap-4 mb-5">
           {[
-            { icon: Clock,  text: w.duration    },
-            { icon: Users,  text: w.groupSize   },
-            { icon: Star,   text: w.level       },
-          ].map(({ icon: Icon, text }) => (
+            { icon: Clock, text: w.duration },
+            { icon: Users, text: groupSize  },
+          ].filter(m => m.text).map(({ icon: Icon, text }) => (
             <div key={text} className="flex items-center gap-1.5 text-xs text-muted">
               <Icon className="w-3 h-3 text-muted/60" />
               <span>{text}</span>
@@ -179,36 +130,40 @@ function WorkshopCard({ w, onBook }: WorkshopCardProps) {
 
         <p className="text-sm text-charcoal/70 leading-relaxed mb-5">{w.description}</p>
 
-        {/* Expandable includes */}
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="flex items-center gap-2 text-xs font-sans uppercase tracking-widest text-muted hover:text-charcoal transition-colors mb-4"
-        >
-          What's included
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        </button>
-        <AnimatePresence>
-          {expanded && (
-            <motion.ul
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="overflow-hidden space-y-2 mb-5"
+        {/* Expandable materials */}
+        {w.materials.length > 0 && (
+          <>
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="flex items-center gap-2 text-xs font-sans uppercase tracking-widest text-muted hover:text-charcoal transition-colors mb-4"
             >
-              {w.includes.map(item => (
-                <li key={item} className="flex items-center gap-2.5 text-sm text-charcoal/70">
-                  <CheckCircle className="w-3.5 h-3.5 text-sage flex-shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </motion.ul>
-          )}
-        </AnimatePresence>
+              What's included
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+            <AnimatePresence>
+              {expanded && (
+                <motion.ul
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden space-y-2 mb-5"
+                >
+                  {w.materials.map(item => (
+                    <li key={item} className="flex items-center gap-2.5 text-sm text-charcoal/70">
+                      <CheckCircle className="w-3.5 h-3.5 text-sage flex-shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </motion.ul>
+              )}
+            </AnimatePresence>
+          </>
+        )}
 
         <button
           onClick={onBook}
-          className={`w-full py-3.5 text-xs font-sans uppercase tracking-[0.2em] transition-all duration-400 flex items-center justify-center gap-3 ${accentMap[w.accent]} hover:opacity-90`}
+          className={`w-full py-3.5 text-xs font-sans uppercase tracking-[0.2em] transition-all duration-400 flex items-center justify-center gap-3 ${accentMap[accent]} hover:opacity-90`}
         >
           Inquire & Book
           <ArrowRight className="w-3.5 h-3.5" />
@@ -219,6 +174,7 @@ function WorkshopCard({ w, onBook }: WorkshopCardProps) {
 }
 
 export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
+  const { workshops } = useWorkshops();
   const [bookingWorkshop, setBookingWorkshop] = useState<string | null>(null);
   const [bookForm, setBookForm] = useState({ name: '', email: '', message: '', trap: '' });
   const [submitted, setSubmitted] = useState(false);
@@ -226,6 +182,8 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
 
   useSEO({ title: 'Workshops', description: 'Studio workshops and highland retreats with Mapheane in Lesotho' });
   useEffect(() => { window.scrollTo(0, 0); }, []);
+
+  const activeWorkshops = workshops.filter(w => w.status !== 'past' && w.status !== 'draft');
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,11 +312,17 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {WORKSHOPS.map(w => (
-              <WorkshopCard key={w.id} w={w} onBook={() => setBookingWorkshop(w.title)} />
-            ))}
-          </div>
+          {activeWorkshops.length === 0 ? (
+            <p className="text-muted text-sm py-8 text-center border-t border-charcoal/10">
+              No upcoming workshops scheduled — check back soon.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {activeWorkshops.map((w, i) => (
+                <WorkshopCard key={w.id} w={w} accentIdx={i} onBook={() => setBookingWorkshop(w.title)} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -516,7 +480,7 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[70] bg-ink/55 backdrop-blur-sm"
-              onClick={() => { setBookingWorkshop(null); setSubmitted(false); setBookForm({ name: '', email: '', message: '' }); }}
+              onClick={() => { setBookingWorkshop(null); setSubmitted(false); setBookForm({ name: '', email: '', message: '', trap: '' }); }}
             />
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.97 }}

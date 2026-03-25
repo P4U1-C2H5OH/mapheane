@@ -4,8 +4,8 @@ import {
   ArrowLeft, X, ShoppingBag, ArrowRight, Heart,
   Shield, Truck, RefreshCw, Tag
 } from 'lucide-react';
-import { useCart }      from '../context/CartContext';
-import { useWishlist }  from '../context/WishlistContext';
+import { useCart, cartItemKey } from '../context/CartContext';
+import { useWishlist }          from '../context/WishlistContext';
 import { useCurrency }  from '../context/CurrencyContext';
 import { useToast }     from '../context/ToastContext';
 import { useSEO }       from '../hooks/useSEO';
@@ -28,20 +28,20 @@ export function CartPage({ onNavigate }: CartPageProps) {
   const { toggleWishlist, isWishlisted }  = useWishlist();
   const { format: fmt, currency }         = useCurrency();
   const { wishlisted, success }           = useToast();
-  const [removingId, setRemovingId]       = useState<number | null>(null);
+  const [removingKey, setRemovingKey] = useState<string | null>(null);
 
   const subtotal    = getCartTotal();
   const shippingMsg = 'Calculated at checkout';
-  const hasOriginal = cartItems.some(i => !('editionSize' in i.artwork));
 
-  const handleRemove = (id: number) => {
-    setRemovingId(id);
-    setTimeout(() => { removeFromCart(id); setRemovingId(null); }, 350);
+  const handleRemove = (artworkId: string, editionId?: string) => {
+    const key = `${artworkId}::${editionId ?? 'original'}`;
+    setRemovingKey(key);
+    setTimeout(() => { removeFromCart(artworkId, editionId); setRemovingKey(null); }, 350);
   };
 
-  const handleSaveForLater = (id: number, title: string) => {
-    toggleWishlist(id);
-    removeFromCart(id);
+  const handleSaveForLater = (artworkId: string, title: string, editionId?: string) => {
+    toggleWishlist(artworkId);
+    removeFromCart(artworkId, editionId);
     wishlisted(`"${title}" moved to wishlist`);
   };
 
@@ -118,12 +118,15 @@ export function CartPage({ onNavigate }: CartPageProps) {
           {/* ── Cart items ─────────────────────────────────────────────────── */}
           <div className="lg:col-span-7 space-y-0">
             <AnimatePresence mode="popLayout">
-              {cartItems.map((item, idx) => (
+              {cartItems.map((item, idx) => {
+                const itemKey = cartItemKey(item);
+                const itemPrice = (item.edition?.price.eur ?? item.artwork.price) * item.quantity;
+                return (
                 <motion.div
-                  key={item.artwork.id}
+                  key={itemKey}
                   layout
                   initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: removingId === item.artwork.id ? 0 : 1, y: 0 }}
+                  animate={{ opacity: removingKey === itemKey ? 0 : 1, y: 0 }}
                   exit={{ opacity: 0, x: -24, height: 0 }}
                   transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
                   className={`flex gap-4 sm:gap-6 py-6 ${idx > 0 ? 'border-t border-charcoal/8' : ''}`}
@@ -153,32 +156,34 @@ export function CartPage({ onNavigate }: CartPageProps) {
                         {item.artwork.title}
                       </button>
                       <p className="text-xs font-sans uppercase tracking-widest text-muted mt-1">{item.artwork.technique}</p>
-                      <p className="text-xs text-muted/60 mt-0.5">{item.artwork.dimensions}</p>
+                      <p className="text-xs text-muted/60 mt-0.5">
+                        {item.edition ? item.edition.size : item.artwork.dimensions}
+                      </p>
                     </div>
 
-                    {/* Provenance note */}
+                    {/* Provenance / edition note */}
                     <div className="bg-parchment/50 border border-charcoal/6 px-3 py-2 inline-flex items-center gap-2">
                       <Tag className="w-3 h-3 text-muted flex-shrink-0" />
                       <p className="text-xs text-muted">
-                        Original — includes Certificate of Authenticity
+                        {item.edition
+                          ? `${item.edition.type} Edition · ${item.edition.paper || item.edition.size}`
+                          : 'Original — includes Certificate of Authenticity'}
                       </p>
                     </div>
 
-                    {/* Mobile: price + actions */}
+                    {/* Price + actions */}
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <p className="font-serif text-xl text-charcoal">
-                        {fmt(item.artwork.price * item.quantity)}
-                      </p>
+                      <p className="font-serif text-xl text-charcoal">{fmt(itemPrice)}</p>
                       <div className="flex items-center gap-3">
                         <button
-                          onClick={() => handleSaveForLater(item.artwork.id, item.artwork.title)}
+                          onClick={() => handleSaveForLater(item.artwork.id, item.artwork.title, item.edition?.id)}
                           className="text-xs font-sans text-muted hover:text-terracotta transition-colors flex items-center gap-1.5"
                         >
                           <Heart className={`w-3.5 h-3.5 ${isWishlisted(item.artwork.id) ? 'fill-terracotta text-terracotta' : ''}`} />
                           <span className="hidden sm:inline">Save for later</span>
                         </button>
                         <button
-                          onClick={() => handleRemove(item.artwork.id)}
+                          onClick={() => handleRemove(item.artwork.id, item.edition?.id)}
                           className="text-xs font-sans text-muted hover:text-red-400 transition-colors flex items-center gap-1.5"
                           aria-label="Remove from cart"
                         >
@@ -189,7 +194,8 @@ export function CartPage({ onNavigate }: CartPageProps) {
                     </div>
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
 
             {/* Upsell: Collector's Circle */}
@@ -220,17 +226,23 @@ export function CartPage({ onNavigate }: CartPageProps) {
 
               {/* Line items */}
               <div className="space-y-3 mb-5 pb-5 border-b border-charcoal/8">
-                {cartItems.map(item => (
-                  <div key={item.artwork.id} className="flex items-start justify-between gap-3 text-sm">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-charcoal/80 truncate">{item.artwork.title}</p>
-                      {item.quantity > 1 && (
-                        <p className="text-xs text-muted">× {item.quantity}</p>
-                      )}
+                {cartItems.map(item => {
+                  const linePrice = (item.edition?.price.eur ?? item.artwork.price) * item.quantity;
+                  return (
+                    <div key={cartItemKey(item)} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-charcoal/80 truncate">{item.artwork.title}</p>
+                        {item.edition && (
+                          <p className="text-xs text-muted truncate">{item.edition.title || item.edition.size}</p>
+                        )}
+                        {item.quantity > 1 && (
+                          <p className="text-xs text-muted">× {item.quantity}</p>
+                        )}
+                      </div>
+                      <p className="text-charcoal flex-shrink-0">{fmt(linePrice)}</p>
                     </div>
-                    <p className="text-charcoal flex-shrink-0">{fmt(item.artwork.price * item.quantity)}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Totals */}

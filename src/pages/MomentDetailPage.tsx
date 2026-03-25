@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Calendar, MapPin, Tag, Share2, Heart, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getMomentById, artistMoments, momentTypeLabels, MomentType } from '../data/moments';
+import { useMoments } from '../hooks/useMoments';
+import { momentTypeLabels, MomentType } from '../data/moments';
 
 interface MomentDetailPageProps {
-  momentId: number;
+  momentId: string;
   onNavigate: (page: any) => void;
-  onSelectMoment: (id: number) => void;
+  onSelectMoment: (id: string) => void;
 }
 
 export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: MomentDetailPageProps) {
-  const moment = getMomentById(momentId);
+  const { moments } = useMoments();
+  const moment = moments.find(m => m.id === momentId);
   const [isLiked, setIsLiked] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -66,7 +68,7 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
   };
 
   // Get related moments (same type, excluding current)
-  const relatedMoments = artistMoments
+  const relatedMoments = moments
     .filter(m => m.type === moment.type && m.id !== moment.id)
     .slice(0, 3);
 
@@ -172,7 +174,7 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
             transition={{ delay: 0.4, duration: 0.8 }}
             className="mb-12"
           >
-            {moment.media[0].type === 'video' ? (
+            {moment.media?.[0]?.type === 'video' ? (
               <div className="relative w-full aspect-[16/10] overflow-hidden bg-charcoal">
                 <video
                   src={moment.media[0].url}

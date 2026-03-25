@@ -3,20 +3,29 @@ import { useCurrency } from '../context/CurrencyContext';
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Minus, Plus, ShoppingBag, Check, Heart, ZoomIn, Share2, Bell, BellRing } from 'lucide-react';
-import { artworks } from '../data/artworks';
-import { useCart } from '../context/CartContext';
+import { useArtworks } from '../hooks/useArtworks';
+import { useEditions } from '../hooks/useEditions';
+import { useCart, CartItemEdition } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { LightboxModal } from '../components/LightboxModal';
 import { CommissionModal } from '../components/CommissionModal';
 
 interface ArtworkPageProps {
-  artworkId: number;
+  artworkId: string;
   onNavigate: (page: any) => void;
 }
 
 export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
+  const { artworks } = useArtworks();
+  const { editions } = useEditions();
   const artwork = artworks.find(a => a.id === artworkId);
+
+  // Editions linked to this artwork that are available for purchase
+  const artworkEditions = artwork
+    ? editions.filter(e => e.artworkId === artwork.id && e.available)
+    : [];
+
   useSEO({
     title: artwork?.title,
     description: artwork?.description,
@@ -26,46 +35,60 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
     medium: artwork?.technique,
     year: artwork?.year,
   });
+
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { cartAdded, wishlisted } = useToast();
 
-  const [selectedSize, setSelectedSize] = useState<'Original' | 'Large Print' | 'Medium Print'>('Original');
-  const [quantity, setQuantity] = useState(1);
-  const [activeImg, setActiveImg] = useState(0);
-  const [addedToCart, setAddedToCart] = useState(false);
+  // 'original' or an edition.id
+  const [selectedSlot, setSelectedSlot] = useState<string>('original');
+  const [quantity, setQuantity]         = useState(1);
+  const [activeImg, setActiveImg]       = useState(0);
+  const [addedToCart, setAddedToCart]   = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [commissionOpen, setCommissionOpen] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState('');
-  const [notifySent, setNotifySent] = useState(false);
-  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyEmail, setNotifyEmail]   = useState('');
+  const [notifySent, setNotifySent]     = useState(false);
+  const [notifyOpen, setNotifyOpen]     = useState(false);
 
-  useEffect(() => { window.scrollTo(0, 0); setActiveImg(0); }, [artworkId]);
+  useEffect(() => { window.scrollTo(0, 0); setActiveImg(0); setSelectedSlot('original'); }, [artworkId]);
 
   if (!artwork) return null;
 
   const liked = isWishlisted(artwork.id);
 
-  const getPrice = () => {
-    if (selectedSize === 'Original')    return artwork.price;
-    if (selectedSize === 'Large Print') return 450;
-    return 250;
-  };
+  const selectedEdition = artworkEditions.find(e => e.id === selectedSlot) ?? null;
+  const displayPrice    = selectedEdition ? selectedEdition.price.eur : artwork.price;
+  const displaySub      = selectedEdition
+    ? `${selectedEdition.size}${selectedEdition.paper ? ` · ${selectedEdition.paper}` : ''}`
+    : artwork.dimensions;
 
-  // ZAR approximation (R18 per €1)
   const { format: formatPrice, currency } = useCurrency();
 
   const handleAddToCart = () => {
-    if (selectedSize === 'Original' && artwork.status === 'Available') {
+    if (selectedSlot === 'original') {
+      if (artwork.status !== 'Available') return;
       for (let i = 0; i < quantity; i++) addToCart(artwork);
-      setAddedToCart(true);
-      setTimeout(() => setAddedToCart(false), 2500);
-      cartAdded(
-        `"${artwork.title}" added`,
-        `${artwork.dimensions}`,
-        { label: 'View Cart', onClick: () => onNavigate('cart') }
-      );
+    } else if (selectedEdition) {
+      const editionRef: CartItemEdition = {
+        id:    selectedEdition.id,
+        title: selectedEdition.title || `${selectedEdition.type} Edition`,
+        size:  selectedEdition.size,
+        paper: selectedEdition.paper,
+        type:  selectedEdition.type,
+        price: selectedEdition.price,
+      };
+      addToCart(artwork, editionRef);
+    } else {
+      return;
     }
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 2500);
+    cartAdded(
+      `"${artwork.title}" added`,
+      selectedEdition ? selectedEdition.size : artwork.dimensions,
+      { label: 'View Cart', onClick: () => onNavigate('cart') }
+    );
   };
 
   const handleWishlist = () => {
@@ -77,7 +100,6 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
   const handleNotify = (e: React.FormEvent) => {
     e.preventDefault();
     if (!notifyEmail) return;
-    // Store intent locally — backend will pick this up when wired
     const key = `notify_${artwork.id}`;
     const existing = JSON.parse(localStorage.getItem(key) || '[]') as string[];
     if (!existing.includes(notifyEmail)) {
@@ -95,11 +117,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
     }
   };
 
-  const SIZES = [
-    { id: 'Original'    as const, label: 'Original Work', eur: artwork.price, disabled: artwork.status === 'Sold' },
-    { id: 'Large Print' as const, label: 'Large Edition Print', eur: 450, disabled: false },
-    { id: 'Medium Print'as const, label: 'Medium Edition Print', eur: 250, disabled: false },
-  ];
+  const isOriginalSold = selectedSlot === 'original' && artwork.status === 'Sold';
 
   return (
     <>
@@ -250,12 +268,12 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
                 </h1>
                 <p className="text-sm text-muted mb-5">{artwork.technique}</p>
 
-                {/* Price block */}
+                {/* Price block — updates when edition selected */}
                 <div className="flex items-baseline gap-3 mb-1">
-                  <span className="font-serif text-3xl text-charcoal">{formatPrice(getPrice())}</span>
-                  <span className="text-sm text-muted">ZAR</span>
+                  <span className="font-serif text-3xl text-charcoal">{formatPrice(displayPrice)}</span>
+                  <span className="text-sm text-muted">{currency.code}</span>
                 </div>
-                <p className="text-xs text-muted/60">≈ €{getPrice().toLocaleString()} · {artwork.dimensions}</p>
+                <p className="text-xs text-muted/60">≈ €{displayPrice.toLocaleString()} · {displaySub}</p>
               </div>
 
               <div className="w-12 h-px bg-terracotta/30 mb-8" />
@@ -293,30 +311,59 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
                 <div>
                   <p className="text-label uppercase tracking-widest text-muted mb-3">Format</p>
                   <div className="space-y-2">
-                    {SIZES.map(size => (
+
+                    {/* Original */}
+                    <button
+                      onClick={() => artwork.status === 'Available' && setSelectedSlot('original')}
+                      disabled={artwork.status === 'Sold'}
+                      className={`w-full flex items-center justify-between px-4 py-3 border transition-all duration-300 ${
+                        selectedSlot === 'original'
+                          ? 'border-terracotta bg-terracotta/5 text-charcoal'
+                          : artwork.status === 'Sold'
+                          ? 'border-charcoal/8 text-muted/40 cursor-not-allowed opacity-60'
+                          : 'border-charcoal/10 hover:border-charcoal/25 text-charcoal/75'
+                      }`}
+                    >
+                      <span className="font-serif text-sm">Original Work</span>
+                      <span className="text-xs text-muted font-sans">
+                        {artwork.status === 'Sold' ? 'Sold' : formatPrice(artwork.price)}
+                      </span>
+                    </button>
+
+                    {/* Dynamic editions from admin */}
+                    {artworkEditions.map(edition => (
                       <button
-                        key={size.id}
-                        onClick={() => !size.disabled && setSelectedSize(size.id)}
-                        disabled={size.disabled}
-                        className={`w-full flex items-center justify-between px-4 py-3 border transition-all duration-300 ${
-                          selectedSize === size.id
+                        key={edition.id}
+                        onClick={() => setSelectedSlot(edition.id)}
+                        className={`w-full flex items-start justify-between px-4 py-3 border transition-all duration-300 ${
+                          selectedSlot === edition.id
                             ? 'border-terracotta bg-terracotta/5 text-charcoal'
-                            : size.disabled
-                            ? 'border-charcoal/8 text-muted/40 cursor-not-allowed opacity-60'
                             : 'border-charcoal/10 hover:border-charcoal/25 text-charcoal/75'
                         }`}
                       >
-                        <span className="font-serif text-sm">{size.label}</span>
-                        <span className="text-xs text-muted font-sans">
-                          {size.disabled ? 'Sold' : formatPrice(size.eur)}
-                        </span>
+                        <div className="text-left">
+                          <span className="font-serif text-sm block">
+                            {edition.title || `${edition.type} Edition`}
+                          </span>
+                          <span className="text-xs text-muted/60 mt-0.5 block">
+                            {edition.size}{edition.paper ? ` · ${edition.paper}` : ''}
+                          </span>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-3">
+                          <span className="text-xs text-muted font-sans block">{formatPrice(edition.price.eur)}</span>
+                          {edition.editionSize && (
+                            <span className="text-xs text-muted/50 block mt-0.5">
+                              {edition.editionSold}/{edition.editionSize} sold
+                            </span>
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 {/* Quantity — only for originals */}
-                {selectedSize === 'Original' && artwork.status === 'Available' && (
+                {selectedSlot === 'original' && artwork.status === 'Available' && (
                   <div>
                     <p className="text-label uppercase tracking-widest text-muted mb-3">Quantity</p>
                     <div className="inline-flex items-center border border-charcoal/15">
@@ -334,7 +381,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
                 )}
 
                 {/* Add to cart or Notify me */}
-                {selectedSize === 'Original' && artwork.status === 'Sold' ? (
+                {isOriginalSold ? (
                   <div className="space-y-3">
                     <div className="text-center py-2">
                       <span className="text-label uppercase tracking-[0.2em] text-muted">This work has found a home</span>
@@ -386,7 +433,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
                     {addedToCart ? (
                       <><Check className="w-4 h-4" /> Added</>
                     ) : (
-                      <><ShoppingBag className="w-4 h-4" /> Acquire — {formatPrice(getPrice() * quantity)}</>
+                      <><ShoppingBag className="w-4 h-4" /> Acquire — {formatPrice(displayPrice * (selectedSlot === 'original' ? quantity : 1))}</>
                     )}
                   </button>
                 )}

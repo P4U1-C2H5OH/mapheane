@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Download, ExternalLink, ChevronDown, ChevronUp, FileText, Image, Mail } from 'lucide-react';
 import { useSEO } from '../hooks/useSEO';
-import { artworks } from '../data/artworks';
+import { useArtworks } from '../hooks/useArtworks';
 
 interface Props { onNavigate: (page: any) => void; }
 
@@ -39,6 +39,7 @@ The highlands of Lesotho, the Kingdom in the Sky, provide more than a setting. T
 The work asks what it means to make something new from something ancient, in a place the world has largely not yet learned to see.`;
 
 export function PressKitPage({ onNavigate }: Props) {
+  const { artworks } = useArtworks();
   useSEO({
     title: 'Press & CV',
     description: 'Professional press kit, CV, artist statement, and exhibition history for Mapheane — contemporary artist based in Maseru, Lesotho.',

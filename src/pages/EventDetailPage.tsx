@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, Calendar, MapPin, Clock, Share2, Download, 
-  ExternalLink, Mail, Phone, Globe, Ticket, Check, Users, Sparkles 
+import {
+  ArrowLeft, Calendar, MapPin, Clock, Share2, Download,
+  ExternalLink, Mail, Phone, Globe, Ticket, Check, Users, Sparkles
 } from 'lucide-react';
-import { getEventById, generateICS, generateGoogleCalendarUrl, events, Event } from '../data/events';
-import { artworks } from '../data/artworks';
+import { generateICS, generateGoogleCalendarUrl } from '../data/events';
+import { useEvents } from '../hooks/useEvents';
 
 interface EventDetailPageProps {
-  eventId: number;
+  eventId: string;
   onNavigate: (page: any) => void;
-  onSelectEvent: (id: number) => void;
+  onSelectEvent: (id: string) => void;
 }
 
 export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDetailPageProps) {
-  const event = getEventById(eventId);
+  const { events } = useEvents();
+  const event = events.find(e => e.id === eventId);
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
 
@@ -68,7 +69,7 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
   };
 
   const handleDownloadICS = () => {
-    const icsContent = generateICS(event);
+    const icsContent = generateICS(event as any);
     const blob = new Blob([icsContent], { type: 'text/calendar' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -81,7 +82,7 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
   };
 
   const handleGoogleCalendar = () => {
-    const url = generateGoogleCalendarUrl(event);
+    const url = generateGoogleCalendarUrl(event as any);
     window.open(url, '_blank');
   };
 
@@ -100,11 +101,6 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
   const relatedEvents = events
     .filter(e => e.type === event.type && e.id !== event.id && e.status === 'upcoming')
     .slice(0, 3);
-
-  // Get artworks if referenced
-  const featuredArtworks = event.artworks
-    ? artworks.filter(a => event.artworks?.includes(a.id))
-    : [];
 
   return (
     <motion.div
@@ -140,14 +136,14 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
                 </div>
               )}
               <img
-                src={event.images[0]}
+                src={event.images?.[0] || '/artportfolio.jpg'}
                 alt={event.title}
                 className="w-full h-full object-cover"
               />
             </motion.div>
 
             {/* Additional Images */}
-            {event.images.length > 1 && (
+            {(event.images?.length ?? 0) > 1 && (
               <div className="grid grid-cols-3 gap-4 mt-4">
                 {event.images.slice(1, 4).map((img, idx) => (
                   <div key={idx} className="aspect-square overflow-hidden">
@@ -380,29 +376,6 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
           </div>
         )}
 
-        {/* Featured Artworks */}
-        {featuredArtworks.length > 0 && (
-          <div className="mb-16">
-            <h2 className="font-serif text-3xl text-charcoal mb-6">Featured Artworks</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {featuredArtworks.map((artwork) => (
-                <div key={artwork.id} className="group">
-                  <div className="aspect-[3/4] overflow-hidden mb-3">
-                    <img
-                      src={artwork.images[0]}
-                      alt={artwork.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      style={{ objectPosition: artwork.cropPosition }}
-                    />
-                  </div>
-                  <p className="font-serif text-lg text-charcoal">{artwork.title}</p>
-                  <p className="text-sm text-muted">{artwork.year}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Tags */}
         {event.tags.length > 0 && (
           <div className="mb-16 pb-16 border-b border-charcoal/10">
@@ -432,7 +405,7 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
                 >
                   <div className="relative aspect-[4/5] overflow-hidden mb-3">
                     <img
-                      src={related.images[0]}
+                      src={related.images?.[0] || '/artportfolio.jpg'}
                       alt={related.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

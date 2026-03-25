@@ -2,12 +2,13 @@ import { useSEO } from '../hooks/useSEO';
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, MapPin, Tag, Heart } from 'lucide-react';
-import { artistMoments, ArtistMoment, MomentType } from '../data/moments';
+import { useMoments, DbMoment } from '../hooks/useMoments';
+import { MomentType } from '../data/moments';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 
 interface MomentsPageProps {
   onNavigate: (page: any) => void;
-  onSelectMoment: (id: number) => void;
+  onSelectMoment: (id: string) => void;
 }
 
 const momentTypeLabels: Record<MomentType, string> = {
@@ -20,22 +21,23 @@ const momentTypeLabels: Record<MomentType, string> = {
 };
 
 export function MomentsPage({ onNavigate, onSelectMoment }: MomentsPageProps) {
+  const { moments } = useMoments();
   const [selectedType, setSelectedType] = useState<MomentType | 'all'>('all');
-  const [likedMoments, setLikedMoments] = useState<Set<number>>(new Set());
+  const [likedMoments, setLikedMoments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  const filteredMoments = selectedType === 'all' 
-    ? artistMoments 
-    : artistMoments.filter(m => m.type === selectedType);
+  const filteredMoments = selectedType === 'all'
+    ? moments
+    : moments.filter(m => m.type === selectedType);
 
   const sortedMoments = [...filteredMoments].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
-  const toggleLike = (id: number) => {
+  const toggleLike = (id: string) => {
     setLikedMoments(prev => {
       const newSet = new Set(prev);
       if (newSet.has(id)) {
@@ -137,7 +139,7 @@ export function MomentsPage({ onNavigate, onSelectMoment }: MomentsPageProps) {
 }
 
 interface MomentCardProps {
-  moment: ArtistMoment;
+  moment: DbMoment;
   index: number;
   isLiked: boolean;
   onLike: () => void;
@@ -196,8 +198,8 @@ function MomentCard({ moment, index, isLiked, onLike, onClick }: MomentCardProps
         </div>
 
         <img
-          src={moment.media[0].url}
-          alt={moment.media[0].alt}
+          src={moment.media?.[0]?.url || '/artportfolio.jpg'}
+          alt={moment.media?.[0]?.alt || moment.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
 

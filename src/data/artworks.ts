@@ -7,7 +7,7 @@ export interface ArtworkMedia {
 }
 
 export interface Artwork {
-  id: number;
+  id: string;
   title: string;
   dimensions: string;
   technique: string;
@@ -25,7 +25,7 @@ export interface Artwork {
 
 export const artworks: Artwork[] = [
 {
-  id: 1,
+  id: '1',
   title: 'Ce Père Idéal',
   dimensions: '97cm x 130cm',
   technique: 'Mixed media on resin canvas',
@@ -44,7 +44,7 @@ export const artworks: Artwork[] = [
 
 },
 {
-  id: 2,
+  id: '2',
   title: 'La Lumière de ses Yeux',
   dimensions: '100cm x 80cm',
   technique: 'Mixed technique on resin canvas',
@@ -62,7 +62,7 @@ export const artworks: Artwork[] = [
 
 },
 {
-  id: 3,
+  id: '3',
   title: 'Loulou',
   dimensions: '80cm x 100cm',
   technique: 'Mixed technique on canvas',
@@ -77,7 +77,7 @@ export const artworks: Artwork[] = [
   images: ["/artportfolio.jpg", "/artportfolio.jpg"]
 },
 {
-  id: 4,
+  id: '4',
   title: 'Terre Mère',
   dimensions: '45cm x 30cm x 25cm',
   technique: 'Glazed terracotta',
@@ -92,7 +92,7 @@ export const artworks: Artwork[] = [
   images: ["/artportfolio.jpg", "/artportfolio.jpg"]
 },
 {
-  id: 5,
+  id: '5',
   title: 'Fragments de Mémoire',
   dimensions: '60cm x 80cm',
   technique: 'Charcoal and ink on paper',
@@ -107,7 +107,7 @@ export const artworks: Artwork[] = [
   images: ["/artportfolio.jpg", "/artportfolio.jpg"]
 },
 {
-  id: 6,
+  id: '6',
   title: 'Silhouettes Urbaines',
   dimensions: '120cm x 150cm',
   technique: 'Acrylic on canvas',
@@ -122,7 +122,7 @@ export const artworks: Artwork[] = [
   images: ["/artportfolio.jpg", "/artportfolio.jpg"]
 },
 {
-  id: 7,
+  id: '7',
   title: 'Vessel of Dreams',
   dimensions: '35cm x 35cm x 40cm',
   technique: 'Stoneware with oxide wash',
@@ -137,7 +137,7 @@ export const artworks: Artwork[] = [
   images: ["/artportfolio.jpg", "/artportfolio.jpg"]
 },
 {
-  id: 8,
+  id: '8',
   title: 'Études de Corps',
   dimensions: '50cm x 70cm',
   technique: 'Graphite on paper',
@@ -152,7 +152,7 @@ export const artworks: Artwork[] = [
   images: ["/artportfolio.jpg", "/artportfolio.jpg"]
 },
 {
-  id: 9,
+  id: '9',
   title: 'Horizon Éternel',
   dimensions: '90cm x 120cm',
   technique: 'Oil on linen',

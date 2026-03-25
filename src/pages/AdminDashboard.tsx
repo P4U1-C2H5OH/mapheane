@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Image, FileText, Calendar, ShoppingBag,
+  LayoutDashboard, Image, FileText, Calendar, ShoppingBag, Package,
   MessageSquare, Users, GitBranch, BarChart3, Megaphone,
   Award, BookOpen, Settings, LogOut, Menu, X, ChevronRight,
   Bell, Zap
@@ -23,13 +23,14 @@ import { MarketingHub }       from '../components/admin/MarketingHub';
 import { GalleryReadiness }   from '../components/admin/GalleryReadiness';
 import { WorkshopsManager }   from '../components/admin/WorkshopsManager';
 import { AdminSettings }       from '../components/admin/AdminSettings';
+import { ShopManager }        from '../components/admin/ShopManager';
 
 interface AdminDashboardProps {
   onNavigate: (page: any) => void;
 }
 
 export type AdminView =
-  | 'command' | 'gallery' | 'moments' | 'events'
+  | 'command' | 'gallery' | 'shop' | 'moments' | 'events'
   | 'orders' | 'messages' | 'collectors' | 'commissions'
   | 'analytics' | 'marketing' | 'readiness' | 'workshops'
   | 'settings';
@@ -48,10 +49,11 @@ const NAV: NavItem[] = [
   { id: 'collectors', label: 'Collectors',      icon: Users,           group: 'main', badge: 'CRM' },
   { id: 'commissions',label: 'Commissions',     icon: GitBranch,       group: 'main', badge: '3' },
   { id: 'gallery',    label: 'Gallery',         icon: Image,           group: 'studio' },
+  { id: 'shop',       label: 'Shop',            icon: ShoppingBag,     group: 'studio' },
   { id: 'moments',    label: 'Moments',         icon: FileText,        group: 'studio' },
   { id: 'events',     label: 'Events',          icon: Calendar,        group: 'studio' },
   { id: 'workshops',  label: 'Workshops',       icon: BookOpen,        group: 'studio' },
-  { id: 'orders',     label: 'Orders',          icon: ShoppingBag,     group: 'studio', badge: '2' },
+  { id: 'orders',     label: 'Orders',          icon: Package,         group: 'studio', badge: '2' },
   { id: 'messages',   label: 'Messages',        icon: MessageSquare,   group: 'studio', badge: '5' },
   { id: 'marketing',  label: 'Marketing',       icon: Megaphone,       group: 'growth' },
   { id: 'readiness',  label: 'Gallery Readiness', icon: Award,         group: 'growth' },
@@ -71,6 +73,7 @@ function renderView(view: AdminView, onNav: (v: AdminView) => void) {
     case 'collectors':  return <CollectorCRM />;
     case 'commissions': return <CommissionPipeline />;
     case 'gallery':     return <GalleryManager />;
+    case 'shop':        return <ShopManager />;
     case 'moments':     return <MomentsManager />;
     case 'events':      return <EventsManager />;
     case 'workshops':   return <WorkshopsManager />;

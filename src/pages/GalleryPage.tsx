@@ -4,7 +4,8 @@ import { useSEO } from '../hooks/useSEO';
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Eye, Expand, Heart, SlidersHorizontal, X, Bell } from 'lucide-react';
-import { artworks, Artwork } from '../data/artworks';
+import { Artwork } from '../data/artworks';
+import { useArtworks } from '../hooks/useArtworks';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -13,13 +14,14 @@ import { QuickViewModal } from '../components/QuickViewModal';
 
 interface GalleryPageProps {
   onNavigate: (page: any) => void;
-  onSelectArtwork: (id: number) => void;
+  onSelectArtwork: (id: string) => void;
 }
 
 type MediumFilter = 'All' | 'Painting' | 'Drawing' | 'Clay Model';
 type AvailFilter  = 'All' | 'Available' | 'Sold';
 
 export function GalleryPage({ onNavigate, onSelectArtwork }: GalleryPageProps) {
+  const { artworks } = useArtworks();
   const [medium, setMedium]         = useState<MediumFilter>('All');
   const [avail,  setAvail]          = useState<AvailFilter>('All');
   const [quickView, setQuickView]   = useState<Artwork | null>(null);

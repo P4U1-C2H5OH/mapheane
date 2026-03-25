@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Digital studio platform for Mapheane — contemporary artist, Maseru, Kingdom of Lesotho",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "npx vite",
     "build": "npx vite build",

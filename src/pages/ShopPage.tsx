@@ -6,7 +6,8 @@ import {
   ArrowLeft, ArrowRight, ShoppingBag, Heart, ZoomIn,
   Package, Shield, Globe, FileText
 } from 'lucide-react';
-import { artworks } from '../data/artworks';
+import { useArtworks } from '../hooks/useArtworks';
+import { useEditions, Edition } from '../hooks/useEditions';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
@@ -16,128 +17,18 @@ interface ShopPageProps {
   onNavigate: (page: any) => void;
 }
 
-type Edition = {
-  id: string;
-  artworkId: number;
-  title: string;
-  medium: string;
-  year: number;
-  type: 'Limited' | 'Open' | 'Artist Proof';
-  size: string;
-  paper: string;
-  editionSize?: number;
-  editionSold?: number;
-  price: { zar: number; eur: number };
-  image: string;
-  available: boolean;
-  description: string;
-};
-
-const EDITIONS: Edition[] = [
-  {
-    id: 'ce-pere-large',
-    artworkId: 1,
-    title: 'Ce Père Idéal',
-    medium: 'Archival Giclée',
-    year: 2024,
-    type: 'Limited',
-    size: '60 × 80 cm',
-    paper: 'Hahnemühle German Etching 310gsm',
-    editionSize: 25,
-    editionSold: 8,
-    price: { zar: 4500, eur: 250 },
-    image: '/artportfolio.jpg',
-    available: true,
-    description: 'A profound exploration of paternal figures, rendered in archival giclée on heavyweight cotton rag. Deep blacks, warm shadow tones.',
-  },
-  {
-    id: 'ce-pere-medium',
-    artworkId: 1,
-    title: 'Ce Père Idéal',
-    medium: 'Archival Giclée',
-    year: 2024,
-    type: 'Limited',
-    size: '40 × 53 cm',
-    paper: 'Hahnemühle Photo Rag 308gsm',
-    editionSize: 50,
-    editionSold: 14,
-    price: { zar: 2700, eur: 150 },
-    image: '/artportfolio.jpg',
-    available: true,
-    description: 'Medium limited edition. Each print numbered and hand-signed by Mapheane. Certificate of Authenticity included.',
-  },
-  {
-    id: 'lumiere-large',
-    artworkId: 2,
-    title: 'La Lumière de ses Yeux',
-    medium: 'Archival Giclée',
-    year: 2024,
-    type: 'Limited',
-    size: '50 × 40 cm',
-    paper: 'Hahnemühle German Etching 310gsm',
-    editionSize: 25,
-    editionSold: 5,
-    price: { zar: 3600, eur: 200 },
-    image: '/artportfolio.jpg',
-    available: true,
-    description: 'Glass-like resin quality captured in archival print. The warm luminosity of the original preserved through precise colour calibration.',
-  },
-  {
-    id: 'fragments-open',
-    artworkId: 5,
-    title: 'Fragments de Mémoire',
-    medium: 'Archival Giclée',
-    year: 2024,
-    type: 'Open',
-    size: 'A3 (42 × 29.7 cm)',
-    paper: 'Hahnemühle Photo Rag 308gsm',
-    price: { zar: 1200, eur: 67 },
-    image: '/artportfolio.jpg',
-    available: true,
-    description: 'Open edition — signed but not numbered. The most accessible entry point to Mapheane\'s work. Ideal for intimate spaces.',
-  },
-  {
-    id: 'etudes-open',
-    artworkId: 8,
-    title: 'Études de Corps',
-    medium: 'Archival Giclée',
-    year: 2024,
-    type: 'Open',
-    size: 'A3 (42 × 29.7 cm)',
-    paper: 'Hahnemühle Photo Rag 308gsm',
-    price: { zar: 1200, eur: 67 },
-    image: '/artportfolio.jpg',
-    available: true,
-    description: 'Graphite figure studies. Each line placed with intention. Beautifully rendered at A3 for display in a simple frame.',
-  },
-  {
-    id: 'horizon-large',
-    artworkId: 9,
-    title: 'Horizon Éternel',
-    medium: 'Archival Giclée',
-    year: 2023,
-    type: 'Limited',
-    size: '80 × 60 cm',
-    paper: 'Hahnemühle German Etching 310gsm',
-    editionSize: 25,
-    editionSold: 11,
-    price: { zar: 3800, eur: 211 },
-    image: '/artportfolio.jpg',
-    available: true,
-    description: 'Where sea meets sky in an infinite dialogue. Subtle colour gradations captured with full tonal fidelity.',
-  },
-];
-
 type Filter = 'All' | 'Limited' | 'Open';
 
 function EditionCard({
   edition,
+  resolvedImage,
   onAddToCart,
   onWishlist,
   isWishlisted,
   onZoom,
 }: {
   edition: Edition;
+  resolvedImage: string;
   onAddToCart: () => void;
   onWishlist: () => void;
   isWishlisted: boolean;
@@ -170,7 +61,7 @@ function EditionCard({
         onClick={onZoom}
       >
         <img
-          src={edition.image}
+          src={resolvedImage || '/artportfolio.jpg'}
           alt={edition.title}
           draggable={false}
           className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-luxury"
@@ -254,6 +145,8 @@ function EditionCard({
 }
 
 export function ShopPage({ onNavigate }: ShopPageProps) {
+  const { artworks } = useArtworks();
+  const { editions } = useEditions();
   const [filter, setFilter] = useState<Filter>('All');
   const [lightbox, setLightbox] = useState<Edition | null>(null);
   const { addToCart, cartItems } = useCart();
@@ -264,7 +157,8 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
   const { format: formatPrice } = useCurrency();
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  const filtered = filter === 'All' ? EDITIONS : EDITIONS.filter(e => e.type === filter || (filter === 'Limited' && e.type === 'Artist Proof'));
+  const available = editions.filter(e => e.available);
+  const filtered  = filter === 'All' ? available : available.filter(e => e.type === filter || (filter === 'Limited' && e.type === 'Artist Proof'));
 
   const handleAddEdition = (edition: Edition) => {
     // Map edition to cart-compatible artwork item
@@ -273,7 +167,7 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
       // Create a modified artwork entry for the print
       const printItem = {
         ...matchArtwork,
-        id: parseInt(`${edition.artworkId}${edition.id.length}` + Math.floor(Math.random() * 100)),
+        id: `${edition.artworkId}-${edition.id}-${Math.floor(Math.random() * 100)}`,
         title: `${edition.title} — ${edition.size}`,
         price: edition.price.eur,
         status: 'Available' as const,
@@ -288,9 +182,8 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
   };
 
   const handleWishlist = (edition: Edition) => {
-    const fakeId = edition.artworkId * 1000 + edition.id.length;
-    const adding = !isWishlisted(fakeId);
-    toggleWishlist(fakeId);
+    const adding = !isWishlisted(edition.id);
+    toggleWishlist(edition.id);
     if (adding) wishlisted(`"${edition.title}" saved`);
   };
 
@@ -369,7 +262,7 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
                       : 'border-transparent text-muted hover:text-charcoal'
                   }`}
                 >
-                  {f} {f === 'All' ? `(${EDITIONS.length})` : `(${EDITIONS.filter(e => e.type === f || (f === 'Limited' && e.type === 'Artist Proof')).length})`}
+                  {f} {f === 'All' ? `(${available.length})` : `(${available.filter(e => e.type === f || (f === 'Limited' && e.type === 'Artist Proof')).length})`}
                 </button>
               ))}
             </div>
@@ -383,16 +276,21 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
                 transition={{ duration: 0.4 }}
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10"
               >
-                {filtered.map(edition => (
-                  <EditionCard
-                    key={edition.id}
-                    edition={edition}
-                    onAddToCart={() => handleAddEdition(edition)}
-                    onWishlist={() => handleWishlist(edition)}
-                    isWishlisted={isWishlisted(edition.artworkId * 1000 + edition.id.length)}
-                    onZoom={() => setLightbox(edition)}
-                  />
-                ))}
+                {filtered.map(edition => {
+                  const linkedArtwork = artworks.find(a => a.id === edition.artworkId);
+                  const resolvedImage = edition.image || linkedArtwork?.images[0] || '';
+                  return (
+                    <EditionCard
+                      key={edition.id}
+                      edition={edition}
+                      resolvedImage={resolvedImage}
+                      onAddToCart={() => handleAddEdition(edition)}
+                      onWishlist={() => handleWishlist(edition)}
+                      isWishlisted={isWishlisted(edition.id)}
+                      onZoom={() => setLightbox(edition)}
+                    />
+                  );
+                })}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -449,7 +347,7 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
       {/* Lightbox */}
       {lightbox && (
         <LightboxModal
-          images={[lightbox.image]}
+          images={[lightbox.image || artworks.find(a => a.id === lightbox.artworkId)?.images[0] || '/artportfolio.jpg']}
           artworkTitle={`${lightbox.title} · ${lightbox.size}`}
           onClose={() => setLightbox(null)}
         />
