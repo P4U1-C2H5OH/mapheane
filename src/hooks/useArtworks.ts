@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Artwork } from '../data/artworks';
+import { Artwork, artworks as staticArtworks } from '../data/artworks';
 
 function mapRow(row: Record<string, unknown>): Artwork {
   return {
@@ -31,10 +31,18 @@ export function useArtworks() {
       .select('*')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        if (data && data.length > 0) setArtworks(data.map(mapRow));
+        if (data && data.length > 0) {
+          setArtworks(data.map(mapRow));
+        } else {
+          // DB not yet seeded — fall back to static data so the site isn't blank
+          setArtworks(staticArtworks);
+        }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setArtworks(staticArtworks);
+        setLoading(false);
+      });
   }, []);
 
   return { artworks, loading };

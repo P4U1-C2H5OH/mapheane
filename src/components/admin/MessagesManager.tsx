@@ -83,6 +83,7 @@ export function MessagesManager() {
   const [reply, setReply]       = useState('');
   const [sending, setSending]   = useState(false);
   const [sent, setSent]         = useState(false);
+  const [sendError, setSendError] = useState('');
   const [loading, setLoading]   = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -125,14 +126,29 @@ export function MessagesManager() {
   };
 
   const handleSend = async () => {
-    if (!selected) return;
+    if (!selected || !reply.trim()) return;
     setSending(true);
-    // In production this would call /api/reply to send via Resend
-    await new Promise(r => setTimeout(r, 800));
-    await updateStatus(selected.id, 'replied');
-    setSending(false);
-    setSent(true);
-    setReply('');
+    setSendError('');
+    try {
+      const res = await fetch('/api/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to:      selected.email,
+          toName:  selected.name,
+          subject: `Re: ${selected.subject ?? selected.type + ' inquiry'} — Mapheane Studio`,
+          body:    reply,
+        }),
+      });
+      if (!res.ok) throw new Error('Send failed');
+      await updateStatus(selected.id, 'replied');
+      setSent(true);
+      setReply('');
+    } catch {
+      setSendError('Failed to send. Try again or reply from your email client.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const toggleStar = async (id: string) => {
@@ -312,6 +328,7 @@ export function MessagesManager() {
                         className="w-full bg-parchment/30 border border-charcoal/10 p-3 text-sm text-charcoal/80 leading-relaxed resize-none focus:outline-none focus:border-terracotta/40 transition-colors mb-3 font-sans"
                         placeholder="Type your reply…"
                       />
+                      {sendError && <p className="text-xs text-red-400 mb-2">{sendError}</p>}
                       <button onClick={handleSend} disabled={sending || !reply.trim()}
                         className="flex items-center gap-2 bg-terracotta text-background px-5 py-2.5 text-xs font-sans uppercase tracking-widest hover:bg-terracottaDark transition-colors disabled:opacity-50 shadow-button">
                         {sending
