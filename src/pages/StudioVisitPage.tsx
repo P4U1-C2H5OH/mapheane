@@ -117,6 +117,7 @@ export function StudioVisitPage({ onNavigate }: StudioVisitPageProps) {
   const [form, setForm] = useState({ name: '', email: '', date: '', type: 'private-viewing', guests: '1', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useSEO({
@@ -138,11 +139,27 @@ export function StudioVisitPage({ onNavigate }: StudioVisitPageProps) {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
+    setSubmitError('');
     setSubmitting(true);
-    // Will wire to /api/contact with type='Studio-Visit' when backend is live
-    await new Promise(r => setTimeout(r, 800));
-    setSubmitting(false);
-    setSubmitted(true);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:    form.name,
+          email:   form.email,
+          type:    'Studio-Visit',
+          message: `Visit type: ${form.type}\nPreferred date: ${form.date}\nGuests: ${form.guests}${form.message ? '\n\n' + form.message : ''}`,
+          trap:    '',
+        }),
+      });
+      if (!res.ok) throw new Error('Submission failed');
+      setSubmitted(true);
+    } catch {
+      setSubmitError('Something went wrong. Please email hello@mapheane.art directly.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const set = (k: string, v: string) => {
@@ -447,6 +464,7 @@ export function StudioVisitPage({ onNavigate }: StudioVisitPageProps) {
                     />
                   </div>
 
+                  {submitError && <p className="text-xs text-red-400">{submitError}</p>}
                   <button
                     type="submit"
                     disabled={submitting}

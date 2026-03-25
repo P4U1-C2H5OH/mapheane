@@ -21,6 +21,7 @@ interface AuthContextType {
   loginWithInstagram: () => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -146,6 +147,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    });
+    if (error) throw new Error(error.message);
+  };
+
   if (loading) return null; // Prevent flash of unauthenticated content
 
   return (
@@ -159,6 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginWithInstagram,
         signup,
         logout,
+        resetPassword,
       }}
     >
       {children}

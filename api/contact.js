@@ -6,7 +6,7 @@ const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
 
-const VALID_TYPES = ['Purchase', 'Commission', 'Workshop', 'Press', 'General', 'Workshop-Booking'];
+const VALID_TYPES = ['Purchase', 'Commission', 'Workshop', 'Press', 'General', 'Workshop-Booking', 'Studio-Visit'];
 
 async function handler(req, res) {
   // CORS

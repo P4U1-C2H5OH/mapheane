@@ -31,7 +31,7 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
 
-  const { login, signup } = useAuth();
+  const { login, signup, loginWithGoogle, loginWithFacebook, resetPassword } = useAuth();
 
   const reset = () => { setError(''); setSuccess(''); };
 
@@ -51,9 +51,8 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
         await signup(name, email, password);
         onNavigate('home');
       } else {
-        // Simulate password reset email
-        await new Promise(r => setTimeout(r, 900));
-        setSuccess(`Password reset instructions sent to ${email}`);
+        await resetPassword(email);
+        setSuccess(`Password reset link sent to ${email} — check your inbox.`);
       }
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong — please try again');
@@ -66,11 +65,12 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
     reset();
     setLoading(true);
     try {
-      await new Promise(r => setTimeout(r, 800)); // Simulate OAuth
-      onNavigate('home');
-    } catch {
-      setError('Social sign-in unavailable — please use email');
-    } finally {
+      if (provider === 'google')   await loginWithGoogle();
+      else if (provider === 'facebook') await loginWithFacebook();
+      else setError('This sign-in method is not available.');
+      // OAuth redirects away — no onNavigate needed
+    } catch (err: any) {
+      setError(err.message ?? 'Social sign-in unavailable — please use email');
       setLoading(false);
     }
   };
