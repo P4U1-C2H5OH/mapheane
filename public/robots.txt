@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Artwork images
+Allow: /artportfolio.jpg
+
+# Admin — disallow crawling
+Disallow: /admin
+
+Sitemap: https://mapheane.art/sitemap.xml

@@ -1,0 +1,257 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base resets ────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #FAF7F2;
+  color: #2D2A26;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+  overflow-x: hidden;
+}
+
+/* ─── Selection ──────────────────────────────────────────── */
+::selection {
+  background-color: rgba(160, 82, 45, 0.15);
+  color: #A0522D;
+}
+
+/* ─── Scrollbar — minimal, editorial ───────────────────── */
+::-webkit-scrollbar         { width: 6px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: rgba(45,42,38,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(45,42,38,0.3); }
+
+/* ─── Typography refinements ─────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-feature-settings: 'liga' 1, 'kern' 1;
+  text-wrap: balance;
+}
+
+p {
+  max-width: 72ch;
+  text-wrap: pretty;
+}
+
+/* ─── Links — bare, underline-on-hover editorial ─────────── */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── Focus visible — elegant ring ──────────────────────── */
+:focus-visible {
+  outline: 1.5px solid #A0522D;
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+/* ─── Image rendering ────────────────────────────────────── */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+/* ─── Prevent image drag ─────────────────────────────────── */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ─── Global grain overlay — atelier tactile ────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+
+/* ─── Warm gradient ambient ──────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 20%, rgba(160,82,45,0.03) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 70% at 85% 80%, rgba(124,139,111,0.025) 0%, transparent 50%);
+}
+
+/* ─── Utility: no-scrollbar ──────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Utility: text-balance ──────────────────────────────── */
+.text-balance { text-wrap: balance; }
+.text-pretty  { text-wrap: pretty; }
+
+/* ─── Underline link animation ───────────────────────────── */
+.link-underline {
+  position: relative;
+  display: inline-block;
+}
+.link-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: currentColor;
+  transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.link-underline:hover::after { width: 100%; }
+
+/* ─── Button fill-from-bottom ────────────────────────────── */
+.btn-fill {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-fill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.1);
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  z-index: -1;
+}
+.btn-fill:hover::before { transform: translateY(0); }
+
+/* ─── Artwork image — no right click ────────────────────── */
+.artwork-protected {
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+.artwork-container {
+  position: relative;
+}
+.artwork-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* ─── Marquee wrapper ────────────────────────────────────── */
+.marquee-track {
+  display: flex;
+  width: max-content;
+}
+
+/* ─── Page transition wrapper ───────────────────────────── */
+.page-wrapper {
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Editorial divider ──────────────────────────────────── */
+.divider-editorial {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(45,42,38,0.1) 20%,
+    rgba(45,42,38,0.1) 80%,
+    transparent 100%
+  );
+}
+
+/* ─── Scroll reveal base state ───────────────────────────── */
+.reveal-hidden {
+  opacity: 0;
+  transform: translateY(24px);
+}
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.9s cubic-bezier(0.25,0.46,0.45,0.94),
+              transform 0.9s cubic-bezier(0.25,0.46,0.45,0.94);
+}
+
+/* ─── Input — editorial style ────────────────────────────── */
+.input-editorial {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(45,42,38,0.18);
+  padding: 0.5rem 0;
+  font-family: 'Playfair Display', serif;
+  font-size: 1.125rem;
+  color: #2D2A26;
+  width: 100%;
+  transition: border-color 0.3s ease;
+  outline: none;
+}
+.input-editorial::placeholder {
+  color: rgba(45,42,38,0.35);
+  font-style: italic;
+}
+.input-editorial:focus {
+  border-bottom-color: #A0522D;
+}
+
+/* ─── Badge ──────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.75rem;
+  border: 0.5px solid currentColor;
+  border-radius: 0;
+}
+
+/* ─── Skeleton loader ────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(45,42,38,0.05) 25%,
+    rgba(45,42,38,0.1)  50%,
+    rgba(45,42,38,0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Smooth image fade-in on load ───────────────────────── */
+img { transition: opacity 0.4s ease; }
+img[data-loaded="false"] { opacity: 0; }
+img[data-loaded="true"]  { opacity: 1; }

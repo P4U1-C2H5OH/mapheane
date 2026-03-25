@@ -1,0 +1,13 @@
+{
+  "name": "Mapheane",
+  "short_name": "Mapheane",
+  "description": "Contemporary fine art from the Kingdom of Lesotho",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF7F2",
+  "theme_color": "#FAF7F2",
+  "icons": [
+    { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
