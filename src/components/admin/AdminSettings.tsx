@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Save, Check, Phone, Mail, MapPin, CreditCard, Truck,
@@ -84,6 +85,7 @@ function Accordion({ section, isOpen, onToggle, children }: {
 export function AdminSettings() {
   const [open, setOpen] = useState<string>('studio');
   const [saved, setSaved] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [studio, setStudio] = useState({
     name: 'Mapheane',
@@ -127,7 +129,29 @@ export function AdminSettings() {
     newsletterFrom: 'Studio Letters <studio@mapheane.art>',
   });
 
-  const handleSave = (section: string) => {
+  // Load persisted settings from Supabase on mount
+  useEffect(() => {
+    supabase.from('studio_settings').select('key, value').then(({ data }) => {
+      if (!data) return;
+      const map: Record<string, any> = Object.fromEntries(data.map(r => [r.key, r.value]));
+      if (map.studio)     setStudio(s     => ({ ...s,     ...map.studio     }));
+      if (map.payment)    setPayment(p    => ({ ...p,     ...map.payment    }));
+      if (map.shipping)   setShipping(s   => ({ ...s,     ...map.shipping   }));
+      if (map.commission) setCommission(c => ({ ...c, ...map.commission, status: (map.commission.status ?? c.status) as 'open' | 'waitlist' | 'closed' }));
+      if (map.email)      setEmail(e      => ({ ...e,     ...map.email      }));
+    });
+  }, []);
+
+  const handleSave = async (section: string) => {
+    setSaveError(null);
+    const valueMap: Record<string, any> = { studio, payment, shipping, commission, email };
+    const { error } = await supabase
+      .from('studio_settings')
+      .upsert({ key: section, value: valueMap[section] }, { onConflict: 'key' });
+    if (error) {
+      setSaveError(error.message);
+      return;
+    }
     setSaved(section);
     setTimeout(() => setSaved(null), 2000);
   };
@@ -156,6 +180,10 @@ export function AdminSettings() {
           These values are used as defaults throughout the platform. When backend is connected, changes here will update the database.
         </p>
       </div>
+
+      {saveError && (
+        <p className="text-xs text-red-400 bg-red-50 border border-red-200 px-3 py-2">{saveError}</p>
+      )}
 
       <div className="space-y-2">
 

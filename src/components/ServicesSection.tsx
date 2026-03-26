@@ -1,6 +1,8 @@
 import React from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { ArrowRight, Camera, Heart, Sparkles } from 'lucide-react';
+import { momentTypeLabels } from '../data/moments';
+import { useMoments } from '../hooks/useMoments';
 
 interface ArtistMomentsSectionProps {
   onNavigate?: (page: 'moments') => void;
@@ -8,6 +10,9 @@ interface ArtistMomentsSectionProps {
 
 export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) {
   const { ref, isVisible } = useScrollReveal(0.2);
+  const { moments } = useMoments();
+  const latestMoments = moments.slice(0, 3);
+  const hasDbMoments = latestMoments.length > 0;
 
   return (
     <section
@@ -38,18 +43,18 @@ export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) 
 
             <div className="space-y-6 max-w-md">
               <p className="text-charcoal/80 font-light leading-relaxed text-lg">
-                Step into my creative world. From studio sessions to exhibition openings, 
+                Step into my creative world. From studio sessions to exhibition openings,
                 these moments capture the journey behind each piece.
               </p>
               <p className="text-muted font-light leading-relaxed">
-                Photo journals, process videos, and candid glimpses of the artistic 
+                Photo journals, process videos, and candid glimpses of the artistic
                 life—raw, authentic, and unfiltered.
               </p>
 
               <div className="flex items-center gap-6 pt-4">
                 <div className="flex items-center gap-2">
                   <Heart className="w-5 h-5 text-terracotta" />
-                  <span className="text-sm text-muted">24 Moments</span>
+                  <span className="text-sm text-muted">{moments.length} Moments</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-sage" />
@@ -76,42 +81,78 @@ export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) 
             }`}
           >
             <div className="grid grid-cols-2 gap-4 ml-auto max-w-2xl">
-              {/* Large featured image */}
-              <div className="col-span-2 relative aspect-[16/10] overflow-hidden group cursor-pointer">
-                <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10"></div>
-                <img
-                  src="/artportfolio.jpg"
-                  alt="Studio Moment"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  style={{ objectPosition: '50% 30%' }}
-                />
-                <div className="absolute bottom-4 left-4 z-20 bg-white/90 backdrop-blur-sm px-4 py-2">
-                  <p className="text-xs tracking-wider uppercase text-charcoal">
-                    Latest: Studio Session
-                  </p>
-                </div>
-              </div>
+              {hasDbMoments ? (
+                <>
+                  {/* Large featured image — latest DB moment */}
+                  <div className="col-span-2 relative aspect-[16/10] overflow-hidden group cursor-pointer"
+                    onClick={() => onNavigate?.('moments')}>
+                    <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
+                    <img
+                      src={latestMoments[0].media[0]?.url}
+                      alt={latestMoments[0].title}
+                      draggable={false}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
+                    />
+                    <div className="absolute bottom-4 left-4 z-20 bg-background/90 backdrop-blur-sm px-3 py-1.5">
+                      <p className="text-label uppercase tracking-[0.2em] text-charcoal">
+                        {momentTypeLabels[latestMoments[0].type]} · {latestMoments[0].title}
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Two smaller images */}
-              <div className="relative aspect-square overflow-hidden group cursor-pointer">
-                <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10"></div>
-                <img
-                  src="/artportfolio.jpg"
-                  alt="Exhibition Opening"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  style={{ objectPosition: '60% 40%' }}
-                />
-              </div>
+                  {/* Two smaller images */}
+                  {latestMoments.slice(1).map((moment) => (
+                    <div key={moment.id} className="relative aspect-square overflow-hidden group cursor-pointer"
+                      onClick={() => onNavigate?.('moments')}>
+                      <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
+                      <img
+                        src={moment.media[0]?.url}
+                        alt={moment.title}
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
+                      />
+                      <div className="absolute bottom-3 left-3 z-20 bg-background/90 backdrop-blur-sm px-2.5 py-1">
+                        <p className="text-label uppercase tracking-[0.2em] text-charcoal">
+                          {momentTypeLabels[moment.type]}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {/* Placeholder images when no DB moments yet */}
+                  <div className="col-span-2 relative aspect-[16/10] overflow-hidden group cursor-pointer"
+                    onClick={() => onNavigate?.('moments')}>
+                    <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
+                    <img src="/Image 5.png" alt="Studio Moment" draggable={false}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
+                    <div className="absolute bottom-4 left-4 z-20 bg-background/90 backdrop-blur-sm px-3 py-1.5">
+                      <p className="text-label uppercase tracking-[0.2em] text-charcoal">Studio · Latest Session</p>
+                    </div>
+                  </div>
 
-              <div className="relative aspect-square overflow-hidden group cursor-pointer">
-                <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10"></div>
-                <img
-                  src="/artportfolio.jpg"
-                  alt="Creative Process"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  style={{ objectPosition: '40% 60%' }}
-                />
-              </div>
+                  <div className="relative aspect-square overflow-hidden group cursor-pointer"
+                    onClick={() => onNavigate?.('moments')}>
+                    <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
+                    <img src="/Fruits.jpg" alt="Process" draggable={false}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
+                    <div className="absolute bottom-3 left-3 z-20 bg-background/90 backdrop-blur-sm px-2.5 py-1">
+                      <p className="text-label uppercase tracking-[0.2em] text-charcoal">Process</p>
+                    </div>
+                  </div>
+
+                  <div className="relative aspect-square overflow-hidden group cursor-pointer"
+                    onClick={() => onNavigate?.('moments')}>
+                    <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
+                    <img src="/exhibition_1.jpg" alt="Exhibition" draggable={false}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
+                    <div className="absolute bottom-3 left-3 z-20 bg-background/90 backdrop-blur-sm px-2.5 py-1">
+                      <p className="text-label uppercase tracking-[0.2em] text-charcoal">Exhibition</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

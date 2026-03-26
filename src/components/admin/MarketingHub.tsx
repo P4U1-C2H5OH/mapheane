@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mail, Send, Users, TrendingUp, Eye, MousePointer,
   Clock, Plus, Star, Tag, Zap, Heart, Calendar, Check
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 type Tab = 'campaigns' | 'promotions' | 'segments' | 'insights';
 
@@ -42,13 +43,13 @@ const INITIAL_CAMPAIGNS: Campaign[] = [
   },
 ];
 
-const SEGMENTS = [
-  { name: 'VIP Collectors',    count: 3,   desc: 'Spent R18k+, 2+ purchases',  color: '#A0522D', audience: 'Collectors + VIP' },
-  { name: 'Active Collectors', count: 5,   desc: '1+ purchases, engaged',       color: '#7C8B6F', audience: 'Collectors + VIP' },
-  { name: 'Workshop Alumni',   count: 24,  desc: 'Attended 1+ workshop',        color: '#C4956A', audience: 'Workshop alumni' },
-  { name: 'Wishlist Savers',   count: 18,  desc: '3+ works wishlisted',         color: '#B8A088', audience: 'All subscribers' },
-  { name: 'Newsletter Only',   count: 262, desc: 'Subscribed, not purchased',   color: '#9E9890', audience: 'Newsletter Only' },
-  { name: 'Gallery Contacts',  count: 8,   desc: 'Curators + gallerists',       color: '#2D2A26', audience: 'Gallery Contacts' },
+const SEGMENT_TEMPLATES = [
+  { key: 'vip',         name: 'VIP Collectors',    desc: 'Spent R18k+, 2+ purchases', color: '#A0522D', audience: 'Collectors + VIP' },
+  { key: 'collectors',  name: 'Active Collectors', desc: '1+ purchases, engaged',      color: '#7C8B6F', audience: 'Collectors + VIP' },
+  { key: 'workshops',   name: 'Workshop Alumni',   desc: 'Attended 1+ workshop',       color: '#C4956A', audience: 'Workshop alumni' },
+  { key: 'wishlist',    name: 'Wishlist Savers',   desc: '3+ works wishlisted',        color: '#B8A088', audience: 'All subscribers' },
+  { key: 'newsletter',  name: 'Newsletter Only',   desc: 'Subscribed, not purchased',  color: '#9E9890', audience: 'Newsletter Only' },
+  { key: 'press',       name: 'Gallery Contacts',  desc: 'Curators + gallerists',      color: '#2D2A26', audience: 'Gallery Contacts' },
 ];
 
 const LUXURY_PROMOS = [
@@ -194,7 +195,46 @@ export function MarketingHub() {
     subject: '', type: 'Studio Update' as Campaign['type'],
     audience: 'All subscribers', body: '', editingId: '',
   });
-  const [sent, setSent] = useState(false);
+  const [sent, setSent]           = useState(false);
+  const [counts, setCounts]       = useState<Record<string, number>>({
+    vip: 0, collectors: 0, workshops: 0, wishlist: 0, newsletter: 0, press: 0,
+  });
+
+  useEffect(() => {
+    async function load() {
+      const [vip, collectors, workshops, press, campaignRows] = await Promise.all([
+        supabase.from('collectors').select('*', { count: 'exact', head: true }).gte('ltv_zar', 18000),
+        supabase.from('collectors').select('*', { count: 'exact', head: true }).gt('ltv_zar', 0),
+        supabase.from('workshop_bookings').select('*', { count: 'exact', head: true }).neq('status', 'cancelled'),
+        supabase.from('messages').select('*', { count: 'exact', head: true }).eq('type', 'Press'),
+        supabase.from('campaigns').select('*').order('created_at', { ascending: false }),
+      ]);
+      setCounts(prev => ({
+        ...prev,
+        vip:        vip.count        ?? prev.vip,
+        collectors: collectors.count ?? prev.collectors,
+        workshops:  workshops.count  ?? prev.workshops,
+        press:      press.count      ?? prev.press,
+      }));
+      if (campaignRows.data?.length) {
+        setCampaigns(campaignRows.data.map(r => ({
+          id:           r.id,
+          subject:      r.subject,
+          type:         r.type as Campaign['type'],
+          status:       r.status as Campaign['status'],
+          audience:     r.audience,
+          sentTo:       r.sent_to ?? undefined,
+          openRate:     r.open_rate ?? undefined,
+          clickRate:    r.click_rate ?? undefined,
+          scheduledFor: r.scheduled_for ?? undefined,
+          sentAt:       r.sent_at ?? undefined,
+        })));
+      }
+    }
+    load();
+  }, []);
+
+  const SEGMENTS = SEGMENT_TEMPLATES.map(s => ({ ...s, count: counts[s.key] ?? 0 }));
 
   const totalSubs = SEGMENTS.reduce((s, seg) => s + seg.count, 0);
   const sentCamp  = campaigns.filter(c => c.openRate);
@@ -213,20 +253,32 @@ export function MarketingHub() {
     setComposing(true);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const isEditing = Boolean(newCampaign.editingId);
+    const id = newCampaign.editingId || `C${Date.now()}`;
     const updated: Campaign = {
-      id: newCampaign.editingId || `C${Date.now()}`,
+      id,
       subject: newCampaign.subject.trim() || 'Untitled draft',
       type: newCampaign.type,
       status: 'draft',
       audience: newCampaign.audience,
     };
+    // Optimistic update
     setCampaigns(prev =>
       isEditing
         ? prev.map(c => c.id === newCampaign.editingId ? updated : c)
         : [updated, ...prev]
     );
+    // Persist to Supabase
+    supabase.from('campaigns').upsert({
+      id,
+      subject:     updated.subject,
+      type:        updated.type,
+      status:      updated.status,
+      audience:    updated.audience,
+      body:        newCampaign.body || null,
+      updated_at:  new Date().toISOString(),
+    }, { onConflict: 'id' });
     setSent(true);
     setTimeout(() => {
       setSent(false);

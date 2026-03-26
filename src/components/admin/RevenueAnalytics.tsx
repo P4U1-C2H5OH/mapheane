@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Calendar, DollarSign, Users, BarChart2 } from 'lucide-react';
 
@@ -42,75 +43,119 @@ function AreaChart({ data, color = '#A0522D', h = 60 }: { data: number[]; color?
   );
 }
 
-const MONTHLY_DATA: Record<Period, { label: string; value: number }[]> = {
-  '3m': [
-    { label: 'May',  value: 28000 },
-    { label: 'Jun',  value: 34000 },
-    { label: 'Jul',  value: 41000 },
-  ],
-  '6m': [
-    { label: 'Feb', value: 18000 },
-    { label: 'Mar', value: 22000 },
-    { label: 'Apr', value: 19000 },
-    { label: 'May', value: 28000 },
-    { label: 'Jun', value: 34000 },
-    { label: 'Jul', value: 41000 },
-  ],
-  '12m': [
-    { label: 'Aug', value: 12000 },
-    { label: 'Sep', value: 15000 },
-    { label: 'Oct', value: 31000 },
-    { label: 'Nov', value: 44000 },
-    { label: 'Dec', value: 38000 },
-    { label: 'Jan', value: 11000 },
-    { label: 'Feb', value: 18000 },
-    { label: 'Mar', value: 22000 },
-    { label: 'Apr', value: 19000 },
-    { label: 'May', value: 28000 },
-    { label: 'Jun', value: 34000 },
-    { label: 'Jul', value: 41000 },
-  ],
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const CHANNEL_COLORS: Record<string, string> = {
+  mpesa: '#A0522D', ecocash: '#7C8B6F', wire: '#C4956A',
 };
 
-const CHANNEL_DATA = [
-  { channel: 'Original Sales',  value: 68400, pct: 52, color: '#A0522D', trend: +18 },
-  { channel: 'Commissions',     value: 42000, pct: 32, color: '#7C8B6F', trend: +41 },
-  { channel: 'Workshop Fees',   value: 12600, pct: 10, color: '#C4956A', trend: +8  },
-  { channel: 'Print Editions',  value:  8100, pct:  6, color: '#B8A088', trend: +22 },
-];
-
-const COLLECTOR_LTV = [
-  { name: 'Sarah Mitchell',   ltv: 85000, purchases: 4, country: 'UK'  },
-  { name: 'Tsepiso Mokhehle', ltv: 55000, purchases: 3, country: 'LS'  },
-  { name: 'Nomvula Khumalo',  ltv: 30000, purchases: 2, country: 'ZA'  },
-  { name: 'Ayanda Nkosi',     ltv: 25000, purchases: 1, country: 'ZA'  },
-];
-
-const SEASONAL = [
-  { month: 'Jan',  sales: 11000, note: 'Low' },
-  { month: 'Feb',  sales: 18000, note: '' },
-  { month: 'Mar',  sales: 22000, note: 'Spring peak' },
-  { month: 'Apr',  sales: 19000, note: '' },
-  { month: 'May',  sales: 28000, note: 'Summer' },
-  { month: 'Jun',  sales: 34000, note: '' },
-  { month: 'Jul',  sales: 41000, note: '' },
-  { month: 'Aug',  sales: 29000, note: '' },
-  { month: 'Sep',  sales: 24000, note: '' },
-  { month: 'Oct',  sales: 31000, note: 'Q4 season' },
-  { month: 'Nov',  sales: 44000, note: 'Peak!' },
-  { month: 'Dec',  sales: 38000, note: 'Holiday' },
-];
+/** Build last-N-months buckets from an ordered list of orders */
+function buildMonthly(orders: { created_at: string; total_zar: number }[], months: number) {
+  const now = new Date();
+  return Array.from({ length: months }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1);
+    const total = orders
+      .filter(o => {
+        const od = new Date(o.created_at);
+        return od.getFullYear() === d.getFullYear() && od.getMonth() === d.getMonth();
+      })
+      .reduce((s, o) => s + (o.total_zar ?? 0), 0);
+    return { label: MONTH_NAMES[d.getMonth()], value: total };
+  });
+}
 
 export function RevenueAnalytics() {
   const [period, setPeriod] = useState<Period>('6m');
-  const data   = MONTHLY_DATA[period];
+
+  type MonthRow    = { label: string; value: number };
+  type ChannelRow  = { channel: string; value: number; pct: number; color: string; trend: number };
+  type CollectorRow= { name: string; ltv: number; purchases: number; country: string };
+  type SeasonalRow = { month: string; sales: number; note: string };
+
+  const [allOrders,   setAllOrders]   = useState<{ created_at: string; total_zar: number; payment_method: string; customer: any }[]>([]);
+  const [channelData, setChannelData] = useState<ChannelRow[]>([]);
+  const [collectorLTV,setCollectorLTV]= useState<CollectorRow[]>([]);
+  const [seasonal,    setSeasonal]    = useState<SeasonalRow[]>([]);
+  const [kpis, setKpis] = useState({ total12m: 0, totalPrev: 0, commLTV: 0, activeComm: 0, soldPct: 0 });
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: rows }, { data: commRows }, { data: artRows }] = await Promise.all([
+        supabase.from('orders').select('created_at, total_zar, payment_method, customer').neq('status', 'cancelled'),
+        supabase.from('commissions').select('price_eur, stage'),
+        supabase.from('artworks').select('status'),
+      ]);
+
+      if (rows?.length) {
+        setAllOrders(rows);
+
+        // 12-month and prior-12-month totals
+        const now = new Date();
+        const yr = now.getFullYear();
+        const mo = now.getMonth();
+        const t12m = rows.filter(o => {
+          const d = new Date(o.created_at);
+          const mAgo = (yr - d.getFullYear()) * 12 + (mo - d.getMonth());
+          return mAgo >= 0 && mAgo < 12;
+        }).reduce((s, o) => s + (o.total_zar ?? 0), 0);
+        const tPrev = rows.filter(o => {
+          const d = new Date(o.created_at);
+          const mAgo = (yr - d.getFullYear()) * 12 + (mo - d.getMonth());
+          return mAgo >= 12 && mAgo < 24;
+        }).reduce((s, o) => s + (o.total_zar ?? 0), 0);
+
+        // Channel breakdown
+        const byChannel: Record<string, number> = {};
+        rows.forEach(o => {
+          const ch = o.payment_method ?? 'other';
+          byChannel[ch] = (byChannel[ch] ?? 0) + (o.total_zar ?? 0);
+        });
+        const grandTotal = Object.values(byChannel).reduce((s, v) => s + v, 0) || 1;
+        setChannelData(Object.entries(byChannel).map(([ch, val]) => ({
+          channel: ch === 'mpesa' ? 'M-Pesa' : ch === 'ecocash' ? 'EcoCash' : ch === 'wire' ? 'Bank Wire' : ch,
+          value: val,
+          pct: Math.round((val / grandTotal) * 100),
+          color: CHANNEL_COLORS[ch] ?? '#B8A088',
+          trend: 0,
+        })).sort((a, b) => b.value - a.value));
+
+        // Collector LTV
+        const byEmail: Record<string, { name: string; ltv: number; purchases: number; country: string }> = {};
+        rows.forEach(o => {
+          const email = o.customer?.email ?? 'unknown';
+          if (!byEmail[email]) byEmail[email] = { name: o.customer?.name ?? email, ltv: 0, purchases: 0, country: '—' };
+          byEmail[email].ltv += o.total_zar ?? 0;
+          byEmail[email].purchases += 1;
+        });
+        setCollectorLTV(Object.values(byEmail).sort((a, b) => b.ltv - a.ltv).slice(0, 5));
+
+        // Seasonal (last 12 months)
+        setSeasonal(buildMonthly(rows, 12).map(m => ({ month: m.label, sales: m.value, note: '' })));
+
+        setKpis(prev => ({ ...prev, total12m: t12m, totalPrev: tPrev }));
+      }
+
+      // Commission LTV (non-cancelled, price_eur × 18 ≈ ZAR)
+      if (commRows) {
+        const active = commRows.filter(c => c.stage !== 'cancelled');
+        const commLTV = Math.round(active.reduce((s, c) => s + (c.price_eur ?? 0), 0) * 18);
+        setKpis(prev => ({ ...prev, commLTV, activeComm: active.length }));
+      }
+
+      // Sell-through
+      if (artRows?.length) {
+        const sold = artRows.filter(a => a.status === 'Sold').length;
+        setKpis(prev => ({ ...prev, soldPct: Math.round((sold / artRows.length) * 100) }));
+      }
+    }
+    load();
+  }, []);
+
+  const data   = buildMonthly(allOrders, period === '3m' ? 3 : period === '6m' ? 6 : 12);
   const total  = data.reduce((s, d) => s + d.value, 0);
-  const latest = data[data.length - 1].value;
+  const latest = data[data.length - 1]?.value ?? 0;
   const prev   = data[data.length - 2]?.value ?? latest;
-  const trend  = Math.round(((latest - prev) / prev) * 100);
-  const TOTAL_12M = 313100;
-  const TOTAL_PREV = 265000;
-  const yoy = Math.round(((TOTAL_12M - TOTAL_PREV) / TOTAL_PREV) * 100);
+  const trend  = prev > 0 ? Math.round(((latest - prev) / prev) * 100) : 0;
+  const yoy = kpis.totalPrev > 0 ? Math.round(((kpis.total12m - kpis.totalPrev) / kpis.totalPrev) * 100) : 0;
 
   return (
     <div className="space-y-5 max-w-6xl">
@@ -124,10 +169,10 @@ export function RevenueAnalytics() {
       {/* Top KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: '12-month revenue', value: `R ${(TOTAL_12M/1000).toFixed(0)}k`, trend: `+${yoy}% YoY`, up: true },
-          { label: 'Avg monthly',      value: `R ${(TOTAL_12M/12/1000).toFixed(0)}k`, trend: 'This year', up: true },
-          { label: 'Commission LTV',   value: 'R 195k', trend: '4 active collectors', up: true },
-          { label: 'Sell-through',     value: '11%',    trend: 'Total portfolio', up: false },
+          { label: '12-month revenue', value: kpis.total12m > 0 ? `R ${(kpis.total12m/1000).toFixed(0)}k` : '—', trend: kpis.totalPrev > 0 ? `${yoy >= 0 ? '+' : ''}${yoy}% YoY` : 'No prior data', up: yoy >= 0 },
+          { label: 'Avg monthly',      value: kpis.total12m > 0 ? `R ${(kpis.total12m/12/1000).toFixed(0)}k` : '—', trend: 'This year', up: true },
+          { label: 'Commission LTV',   value: kpis.commLTV > 0 ? `R ${(kpis.commLTV/1000).toFixed(0)}k` : '—', trend: kpis.activeComm > 0 ? `${kpis.activeComm} active` : 'No active', up: kpis.commLTV > 0 },
+          { label: 'Sell-through',     value: `${kpis.soldPct}%`, trend: 'Total portfolio', up: kpis.soldPct >= 20 },
         ].map(kpi => (
           <div key={kpi.label} className="bg-background border border-charcoal/8 p-4">
             <p className="text-label uppercase tracking-widest text-muted mb-2">{kpi.label}</p>
@@ -172,7 +217,7 @@ export function RevenueAnalytics() {
         <div className="bg-background border border-charcoal/8 p-5">
           <p className="font-serif italic text-lg text-charcoal mb-5">Revenue by channel</p>
           <div className="space-y-4">
-            {CHANNEL_DATA.map(ch => (
+            {channelData.map(ch => (
               <div key={ch.channel}>
                 <div className="flex justify-between items-baseline mb-1.5">
                   <div className="flex items-center gap-2">
@@ -200,9 +245,9 @@ export function RevenueAnalytics() {
           </div>
           <div className="mt-4 pt-4 border-t border-charcoal/6">
             <p className="text-xs text-muted">Target: no single channel {'>'} 60% of revenue</p>
-            <div className={`text-xs mt-1 flex items-center gap-1 ${CHANNEL_DATA[0].pct < 60 ? 'text-sage' : 'text-terracotta'}`}>
-              {CHANNEL_DATA[0].pct < 60 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              {CHANNEL_DATA[0].pct < 60 ? 'Healthy channel mix' : 'Direct sales too dominant — grow workshops'}
+            <div className={`text-xs mt-1 flex items-center gap-1 ${!channelData[0] || channelData[0].pct < 60 ? 'text-sage' : 'text-terracotta'}`}>
+              {!channelData[0] || channelData[0].pct < 60 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {!channelData[0] || channelData[0].pct < 60 ? 'Healthy channel mix' : 'Direct sales too dominant — grow workshops'}
             </div>
           </div>
         </div>
@@ -211,8 +256,8 @@ export function RevenueAnalytics() {
         <div className="bg-background border border-charcoal/8 p-5">
           <p className="font-serif italic text-lg text-charcoal mb-5">Top collectors by LTV</p>
           <div className="space-y-3">
-            {COLLECTOR_LTV.map((c, i) => {
-              const maxLTV = COLLECTOR_LTV[0].ltv;
+            {collectorLTV.map((c, i) => {
+              const maxLTV = collectorLTV[0].ltv;
               return (
                 <div key={c.name} className="flex items-center gap-3">
                   <span className="text-label text-muted w-4 text-right flex-shrink-0">{i + 1}</span>
@@ -231,7 +276,7 @@ export function RevenueAnalytics() {
             })}
           </div>
           <div className="mt-4 pt-4 border-t border-charcoal/6">
-            <p className="text-xs text-muted">Average collector LTV: R {Math.round(COLLECTOR_LTV.reduce((s,c) => s + c.ltv, 0) / COLLECTOR_LTV.length / 1000)}k</p>
+            <p className="text-xs text-muted">Average collector LTV: R {collectorLTV.length ? Math.round(collectorLTV.reduce((s,c) => s + c.ltv, 0) / collectorLTV.length / 1000) : 0}k</p>
             <p className="text-xs text-muted mt-0.5">Target: 100 collectors = studio revenue floor</p>
           </div>
         </div>
@@ -244,8 +289,8 @@ export function RevenueAnalytics() {
           <p className="text-xs text-muted">Based on global art market data + studio history</p>
         </div>
         <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
-          {SEASONAL.map(m => {
-            const maxSales = Math.max(...SEASONAL.map(s => s.sales));
+          {seasonal.map(m => {
+            const maxSales = Math.max(...seasonal.map(s => s.sales), 1);
             const pct = Math.round((m.sales / maxSales) * 100);
             const isHigh = m.sales >= 35000;
             return (

@@ -129,7 +129,7 @@ export function HeroSection() {
             {/* Warm tint layer */}
             <div className="absolute inset-0 bg-gradient-to-br from-terracotta/6 to-transparent z-10 pointer-events-none" />
             <img
-              src="/artportfolio.jpg"
+              src="/Image 7 - Stylized Portrait b-white.png"
               alt="Mapheane — Featured Artwork"
               className="w-full h-full object-cover object-center hover:scale-[1.03] transition-transform duration-[1800ms] ease-out"
               draggable="false"

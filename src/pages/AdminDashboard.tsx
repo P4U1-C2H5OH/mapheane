@@ -7,6 +7,7 @@ import {
   Bell, Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 // ─── Sub-modules ───────────────────────────────────────────
 import { CommandCenter }      from '../components/admin/CommandCenter';
@@ -47,14 +48,14 @@ const NAV: NavItem[] = [
   { id: 'command',     label: 'Command Centre', icon: LayoutDashboard, group: 'main' },
   { id: 'analytics',  label: 'Revenue',         icon: BarChart3,       group: 'main' },
   { id: 'collectors', label: 'Collectors',      icon: Users,           group: 'main', badge: 'CRM' },
-  { id: 'commissions',label: 'Commissions',     icon: GitBranch,       group: 'main', badge: '3' },
+  { id: 'commissions',label: 'Commissions',     icon: GitBranch,       group: 'main' },
   { id: 'gallery',    label: 'Gallery',         icon: Image,           group: 'studio' },
   { id: 'shop',       label: 'Shop',            icon: ShoppingBag,     group: 'studio' },
   { id: 'moments',    label: 'Moments',         icon: FileText,        group: 'studio' },
   { id: 'events',     label: 'Events',          icon: Calendar,        group: 'studio' },
   { id: 'workshops',  label: 'Workshops',       icon: BookOpen,        group: 'studio' },
-  { id: 'orders',     label: 'Orders',          icon: Package,         group: 'studio', badge: '2' },
-  { id: 'messages',   label: 'Messages',        icon: MessageSquare,   group: 'studio', badge: '5' },
+  { id: 'orders',     label: 'Orders',          icon: Package,         group: 'studio' },
+  { id: 'messages',   label: 'Messages',        icon: MessageSquare,   group: 'studio' },
   { id: 'marketing',  label: 'Marketing',       icon: Megaphone,       group: 'growth' },
   { id: 'readiness',  label: 'Gallery Readiness', icon: Award,         group: 'growth' },
   { id: 'settings',   label: 'Settings',        icon: Settings,        group: 'growth' },
@@ -93,6 +94,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [sidebarOpen, setSidebar] = useState(true);
   const [mobileOpen, setMobile]   = useState(false);
   const [isMobile, setIsMobile]   = useState(false);
+  const [liveBadges, setLiveBadges] = useState({ orders: 0, messages: 0, commissions: 0 });
   const { user, logout }          = useAuth();
 
   useEffect(() => {
@@ -104,6 +106,23 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    async function fetchBadges() {
+      const [orders, messages, commissions] = await Promise.all([
+        supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('messages').select('*', { count: 'exact', head: true }).eq('status', 'unread'),
+        supabase.from('commissions').select('*', { count: 'exact', head: true })
+          .not('stage', 'in', '("complete","cancelled")'),
+      ]);
+      setLiveBadges({
+        orders:      orders.count      ?? 0,
+        messages:    messages.count    ?? 0,
+        commissions: commissions.count ?? 0,
+      });
+    }
+    fetchBadges();
   }, []);
 
   const handleNav = (v: AdminView) => {
@@ -119,42 +138,52 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const activeItem = NAV.find(n => n.id === view);
   const groups = ['main', 'studio', 'growth'] as const;
 
-  const Sidebar = () => (
+  const Sidebar = ({ expanded }: { expanded: boolean }) => (
     <aside
       className="flex flex-col h-full"
       style={{ background: '#1A1815', borderRight: '1px solid rgba(250,247,242,0.06)' }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between px-5 py-5"
-        style={{ borderBottom: '1px solid rgba(250,247,242,0.06)' }}>
-        <div>
-          <button
-            onClick={() => onNavigate('home')}
-            className="font-serif text-2xl italic"
-            style={{ color: '#FAF7F2' }}
-          >
-            Mapheane
-          </button>
-          <p className="text-xs uppercase tracking-[0.2em] mt-0.5" style={{ color: 'rgba(250,247,242,0.3)' }}>
-            Studio Admin
-          </p>
-        </div>
-        {!isMobile && (
+      <div
+        className={`flex items-center py-5 ${expanded ? 'justify-between px-5' : 'justify-center px-2'}`}
+        style={{ borderBottom: '1px solid rgba(250,247,242,0.06)' }}
+      >
+        {expanded ? (
+          <>
+            <div>
+              <button onClick={() => onNavigate('home')} className="font-serif text-2xl italic"
+                style={{ color: '#FAF7F2' }}>
+                Mapheane
+              </button>
+              <p className="text-xs uppercase tracking-[0.2em] mt-0.5" style={{ color: 'rgba(250,247,242,0.3)' }}>
+                Studio Admin
+              </p>
+            </div>
+            {!isMobile && (
+              <button onClick={() => setSidebar(o => !o)}
+                className="p-1 hover:opacity-60 transition-opacity flex-shrink-0"
+                style={{ color: 'rgba(250,247,242,0.4)' }}>
+                <ChevronRight className="w-4 h-4 rotate-180 transition-transform duration-300" />
+              </button>
+            )}
+          </>
+        ) : (
           <button onClick={() => setSidebar(o => !o)}
             className="p-1 hover:opacity-60 transition-opacity"
+            title="Expand sidebar"
             style={{ color: 'rgba(250,247,242,0.4)' }}>
-            <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${sidebarOpen ? 'rotate-180' : ''}`} />
+            <ChevronRight className="w-4 h-4 transition-transform duration-300" />
           </button>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3">
+      <nav className="flex-1 overflow-y-auto py-4 px-2">
         {groups.map(group => {
           const items = NAV.filter(n => n.group === group);
           return (
             <div key={group} className="mb-5">
-              {sidebarOpen && (
+              {expanded && (
                 <p className="text-xs uppercase px-2 mb-2"
                   style={{ color: 'rgba(250,247,242,0.25)', letterSpacing: '0.15em' }}>
                   {GROUP_LABELS[group]}
@@ -167,31 +196,34 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <button
                     key={item.id}
                     onClick={() => handleNav(item.id)}
-                    className="w-full flex items-center gap-3 px-2 py-2.5 mb-0.5 transition-all duration-200 group"
-                    style={{
-                      background: active ? 'rgba(160,82,45,0.18)' : 'transparent',
-                      borderRadius: 4,
-                    }}
+                    title={!expanded ? item.label : undefined}
+                    className={`w-full flex items-center py-2.5 mb-0.5 transition-all duration-200 group ${
+                      expanded ? 'gap-3 px-2' : 'justify-center px-0'
+                    }`}
+                    style={{ background: active ? 'rgba(160,82,45,0.18)' : 'transparent', borderRadius: 4 }}
                   >
-                    <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${active ? 'text-terracotta' : ''}`}
-                      style={{ color: active ? '#A0522D' : 'rgba(250,247,242,0.45)' }}
-                    />
-                    {sidebarOpen && (
+                    <Icon className="w-4 h-4 flex-shrink-0"
+                      style={{ color: active ? '#A0522D' : 'rgba(250,247,242,0.45)' }} />
+                    {expanded && (
                       <>
                         <span className="flex-1 text-left text-sm font-sans"
                           style={{ color: active ? '#FAF7F2' : 'rgba(250,247,242,0.55)' }}>
                           {item.label}
                         </span>
-                        {item.badge && (
-                          <span className="text-[10px] font-sans px-1.5 py-0.5"
-                            style={{
-                              background: active ? '#A0522D' : 'rgba(250,247,242,0.1)',
-                              color: active ? '#FAF7F2' : 'rgba(250,247,242,0.5)',
-                              borderRadius: 2,
-                            }}>
-                            {item.badge}
-                          </span>
-                        )}
+                        {(() => {
+                          const liveCount = liveBadges[item.id as keyof typeof liveBadges];
+                          const display = liveCount > 0 ? String(liveCount) : item.badge;
+                          return display ? (
+                            <span className="text-[10px] font-sans px-1.5 py-0.5"
+                              style={{
+                                background: active ? '#A0522D' : 'rgba(250,247,242,0.1)',
+                                color: active ? '#FAF7F2' : 'rgba(250,247,242,0.5)',
+                                borderRadius: 2,
+                              }}>
+                              {display}
+                            </span>
+                          ) : null;
+                        })()}
                       </>
                     )}
                   </button>
@@ -203,9 +235,9 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       </nav>
 
       {/* User footer */}
-      <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(250,247,242,0.06)' }}>
-        {sidebarOpen ? (
-          <div className="flex items-center gap-3 mb-3">
+      <div className="px-2 py-4" style={{ borderTop: '1px solid rgba(250,247,242,0.06)' }}>
+        {expanded ? (
+          <div className="flex items-center gap-3 mb-3 px-1">
             <div className="w-8 h-8 flex items-center justify-center text-sm font-sans font-500 flex-shrink-0"
               style={{ background: '#A0522D', color: '#FAF7F2' }}>
               {user?.name?.[0]?.toUpperCase() ?? 'M'}
@@ -227,11 +259,14 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         )}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-2 py-2 text-sm hover:opacity-70 transition-opacity"
+          title={!expanded ? 'Sign out' : undefined}
+          className={`w-full flex items-center py-2 text-sm hover:opacity-70 transition-opacity ${
+            expanded ? 'gap-2 px-2' : 'justify-center px-0'
+          }`}
           style={{ color: 'rgba(250,247,242,0.4)' }}
         >
           <LogOut className="w-4 h-4 flex-shrink-0" />
-          {sidebarOpen && <span className="font-sans">Sign out</span>}
+          {expanded && <span className="font-sans">Sign out</span>}
         </button>
       </div>
     </aside>
@@ -247,7 +282,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="flex-shrink-0 h-full overflow-hidden"
         >
-          <Sidebar />
+          <Sidebar expanded={sidebarOpen} />
         </motion.div>
       )}
 
@@ -261,7 +296,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <motion.div initial={{ x: -220 }} animate={{ x: 0 }} exit={{ x: -220 }}
               transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="fixed left-0 top-0 bottom-0 w-56 z-50">
-              <Sidebar />
+              <Sidebar expanded={true} />
             </motion.div>
           </>
         )}
@@ -296,12 +331,19 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </div>
 
             {/* Notification bell */}
-            <button className="relative p-2 text-muted hover:text-charcoal transition-colors">
-              <Bell className="w-4 h-4" />
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-terracotta text-background text-[8px] font-sans rounded-full flex items-center justify-center">
-                7
-              </span>
-            </button>
+            {(() => {
+              const total = liveBadges.orders + liveBadges.messages + liveBadges.commissions;
+              return (
+                <button className="relative p-2 text-muted hover:text-charcoal transition-colors">
+                  <Bell className="w-4 h-4" />
+                  {total > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-terracotta text-background text-[8px] font-sans rounded-full flex items-center justify-center">
+                      {total > 99 ? '99+' : total}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
 
             {/* View public site */}
             <button onClick={() => onNavigate('home')}

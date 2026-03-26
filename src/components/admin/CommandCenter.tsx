@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, ShoppingBag, Users, GitBranch,
   MessageSquare, Plus, ArrowRight, AlertCircle, CheckCircle,
   Clock, Star, Eye, Package, FileText, Megaphone, BarChart3
 } from 'lucide-react';
-import { artworks } from '../../data/artworks';
 import type { AdminView } from '../../pages/AdminDashboard';
 
 interface CommandCenterProps {
@@ -89,20 +89,91 @@ function ActionItem({ icon: Icon, title, sub, urgent, onClick }: {
   );
 }
 
-export function CommandCenter({ onNavigate }: CommandCenterProps) {
-  const totalArtworks   = artworks.length;
-  const availableWorks  = artworks.filter(a => a.status === 'Available').length;
-  const soldWorks       = artworks.filter(a => a.status === 'Sold').length;
-  const totalRevenue    = artworks.filter(a => a.status === 'Sold').reduce((s, a) => s + a.price * 18, 0);
-  const sellThrough     = Math.round((soldWorks / totalArtworks) * 100);
+type DbArtwork = { id: string; title: string; medium: string; technique?: string; status: string; images: any[]; price_eur?: number };
 
-  // Simulated data — wire to real backend
-  const revenueData  = [12000, 18500, 14000, 22000, 19500, 28000, 24000, 31500];
-  const visitorData  = [340, 420, 380, 510, 480, 620, 590, 710];
-  const collectorsN  = 14;
-  const commissionsN = 3;
-  const pendingOrders = 2;
-  const unreadMsgs   = 5;
+export function CommandCenter({ onNavigate }: CommandCenterProps) {
+  const [totalRevenue,      setTotalRevenue]      = useState(0);
+  const [revenueData,       setRevenueData]       = useState<number[]>([0,0,0,0,0,0,0,0]);
+  const [collectorsN,       setCollectorsN]       = useState(0);
+  const [collectorsSparkline, setCollectorsSparkline] = useState<number[]>([0,0,0,0,0,0,0,0]);
+  const [commissionsN,      setCommissionsN]      = useState(0);
+  const [commSparkline,     setCommSparkline]     = useState<number[]>([0,0,0,0,0,0,0,0]);
+  const [pendingOrders,     setPendingOrders]     = useState(0);
+  const [unreadMsgs,        setUnreadMsgs]        = useState(0);
+  const [dbArtworks,        setDbArtworks]        = useState<DbArtwork[]>([]);
+
+  const totalArtworks  = dbArtworks.length;
+  const soldWorks      = dbArtworks.filter(a => a.status === 'Sold').length;
+  const sellThrough    = totalArtworks > 0 ? Math.round((soldWorks / totalArtworks) * 100) : 0;
+
+  useEffect(() => {
+    async function load() {
+      const [ordersRes, commissionsRes, messagesRes, artworksRes] = await Promise.all([
+        supabase.from('orders').select('total_zar, status, created_at, customer').neq('status', 'cancelled'),
+        supabase.from('commissions').select('id, stage, created_at'),
+        supabase.from('messages').select('*', { count: 'exact', head: true }).eq('status', 'unread'),
+        supabase.from('artworks').select('id, title, medium, technique, status, images, price_eur'),
+      ]);
+
+      const orders = ordersRes.data ?? [];
+      const commissions = commissionsRes.data ?? [];
+
+      // Revenue + pending orders
+      setTotalRevenue(orders.reduce((s, o) => s + (o.total_zar ?? 0), 0));
+      setPendingOrders(orders.filter(o => o.status === 'pending').length);
+      setUnreadMsgs(messagesRes.count ?? 0);
+
+      // Artworks
+      if (artworksRes.data?.length) {
+        setDbArtworks(artworksRes.data.map(a => ({
+          ...a,
+          images: Array.isArray(a.images) ? a.images : (a.images ? [a.images] : []),
+        })));
+      }
+
+      // Build last-8-month buckets
+      const now = new Date();
+      const monthBuckets = Array.from({ length: 8 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (7 - i), 1);
+        return { year: d.getFullYear(), month: d.getMonth() };
+      });
+
+      // Revenue sparkline
+      setRevenueData(monthBuckets.map(b =>
+        orders.filter(o => {
+          const d = new Date(o.created_at);
+          return d.getFullYear() === b.year && d.getMonth() === b.month;
+        }).reduce((s, o) => s + (o.total_zar ?? 0), 0)
+      ));
+
+      // Collectors sparkline: cumulative unique buyers up to end of each month
+      const collectorSpark = monthBuckets.map(b => {
+        const cutoff = new Date(b.year, b.month + 1, 0, 23, 59, 59);
+        return new Set(
+          orders
+            .filter(o => new Date(o.created_at) <= cutoff)
+            .map(o => o.customer?.email)
+            .filter(Boolean)
+        ).size;
+      });
+      setCollectorsN(collectorSpark[collectorSpark.length - 1]);
+      setCollectorsSparkline(collectorSpark);
+
+      // Commissions: active = not complete/cancelled
+      const activeComms = commissions.filter(c => c.stage !== 'complete' && c.stage !== 'cancelled');
+      setCommissionsN(activeComms.length);
+
+      // Commission sparkline: count opened per month (cumulative active)
+      setCommSparkline(monthBuckets.map(b => {
+        const cutoff = new Date(b.year, b.month + 1, 0, 23, 59, 59);
+        return commissions.filter(c => {
+          const d = new Date(c.created_at);
+          return d <= cutoff && c.stage !== 'cancelled';
+        }).length;
+      }));
+    }
+    load();
+  }, []);
 
   const today = new Date();
   const hour  = today.getHours();
@@ -135,9 +206,9 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Revenue"
-          value={`R ${(totalRevenue / 1000).toFixed(0)}k`}
-          sub="Total studio revenue"
-          trend="+18%"
+          value={totalRevenue > 0 ? `R ${(totalRevenue / 1000).toFixed(0)}k` : 'R 0'}
+          sub="Revenue from orders"
+          trend={pendingOrders > 0 ? `${pendingOrders} pending` : 'Up to date'}
           trendUp
           sparkData={revenueData}
           color="#A0522D"
@@ -147,10 +218,10 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
         <KpiCard
           label="Collectors"
           value={String(collectorsN)}
-          sub={`${collectorsN} in CRM`}
-          trend="+3 this month"
+          sub={`${collectorsN} unique buyers`}
+          trend={collectorsN > 0 ? `${collectorsN} total` : 'None yet'}
           trendUp
-          sparkData={[6,7,8,9,10,11,12,14]}
+          sparkData={collectorsSparkline}
           color="#7C8B6F"
           icon={Users}
           onClick={() => onNavigate('collectors')}
@@ -159,7 +230,7 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
           label="Commission Pipeline"
           value={String(commissionsN)}
           sub="Active commissions"
-          sparkData={[1,2,1,3,2,4,3,3]}
+          sparkData={commSparkline}
           color="#C4956A"
           icon={GitBranch}
           onClick={() => onNavigate('commissions')}
@@ -167,10 +238,10 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
         <KpiCard
           label="Sell-through"
           value={`${sellThrough}%`}
-          sub={`${soldWorks} of ${totalArtworks} works sold`}
-          trend="Above 80% target"
+          sub={totalArtworks > 0 ? `${soldWorks} of ${totalArtworks} works sold` : 'No artworks yet'}
+          trend={sellThrough >= 80 ? 'Above 80% target' : 'Below 80% target'}
           trendUp={sellThrough >= 80}
-          sparkData={[60,62,65,68,70,72,75,sellThrough]}
+          sparkData={[0,0,0,0,0,0,0,sellThrough]}
           color="#B8A088"
           icon={Star}
         />
@@ -190,8 +261,8 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
 
           <ActionItem icon={ShoppingBag} title={`${pendingOrders} orders awaiting verification`}
             sub="Payment proof uploaded" urgent onClick={() => onNavigate('orders')} />
-          <ActionItem icon={MessageSquare} title={`${unreadMsgs} unread messages`}
-            sub="3 commission inquiries" urgent onClick={() => onNavigate('messages')} />
+          <ActionItem icon={MessageSquare} title={`${unreadMsgs} unread message${unreadMsgs !== 1 ? 's' : ''}`}
+            sub="Check inbox for inquiries" urgent={unreadMsgs > 0} onClick={() => onNavigate('messages')} />
           <ActionItem icon={GitBranch} title="Commission: Ce Père Idéal"
             sub="Deposit received — begin creation" onClick={() => onNavigate('commissions')} />
           <ActionItem icon={Clock} title="Workshop — June 14"
@@ -214,15 +285,15 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
           <div className="bg-background border border-charcoal/8 p-5">
             <div className="grid grid-cols-3 gap-4 mb-5">
               {[
-                { label: 'Paintings', count: artworks.filter(a => a.medium === 'Painting').length, color: '#A0522D' },
-                { label: 'Drawings',  count: artworks.filter(a => a.medium === 'Drawing').length,  color: '#7C8B6F' },
-                { label: 'Sculpture', count: artworks.filter(a => a.medium === 'Clay Model').length, color: '#B8A088' },
+                { label: 'Paintings', count: dbArtworks.filter(a => a.medium === 'Painting').length, color: '#A0522D' },
+                { label: 'Drawings',  count: dbArtworks.filter(a => a.medium === 'Drawing').length,  color: '#7C8B6F' },
+                { label: 'Sculpture', count: dbArtworks.filter(a => a.medium === 'Clay Model').length, color: '#B8A088' },
               ].map(m => (
                 <div key={m.label} className="text-center">
                   <p className="font-serif text-3xl text-charcoal mb-0.5" style={{ letterSpacing: '-0.02em' }}>
                     {m.count}
                   </p>
-                  <div className="h-1 mx-auto mb-1" style={{ background: m.color, width: `${(m.count / totalArtworks) * 100}%`, maxWidth: '100%' }} />
+                  <div className="h-1 mx-auto mb-1" style={{ background: m.color, width: totalArtworks > 0 ? `${(m.count / totalArtworks) * 100}%` : '0%', maxWidth: '100%' }} />
                   <p className="text-label uppercase tracking-widest text-muted">{m.label}</p>
                 </div>
               ))}
@@ -230,26 +301,32 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
 
             {/* Recent artworks */}
             <div className="space-y-2">
-              {artworks.slice(0, 4).map(art => (
+              {dbArtworks.slice(0, 4).map(art => (
                 <div key={art.id}
                   className="flex items-center gap-3 py-2 border-t border-charcoal/5">
                   <div className="w-10 h-10 overflow-hidden flex-shrink-0 bg-parchment">
-                    <img src={art.images[0]} alt={art.title} draggable={false}
-                      className="w-full h-full object-cover"
-                      style={{ objectPosition: art.cropPosition }} />
+                    {art.images?.[0] && (
+                      <img src={art.images[0]} alt={art.title} draggable={false}
+                        className="w-full h-full object-cover object-center" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-serif text-charcoal truncate">{art.title}</p>
-                    <p className="text-xs text-muted">{art.technique}</p>
+                    <p className="text-xs text-muted">{art.technique ?? art.medium}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm text-charcoal">R {(art.price * 18).toLocaleString()}</p>
+                    {art.price_eur != null && (
+                      <p className="text-sm text-charcoal">R {(art.price_eur * 18).toLocaleString()}</p>
+                    )}
                     <span className={`text-label uppercase tracking-widest ${art.status === 'Available' ? 'text-sage' : 'text-muted/50'}`}>
                       {art.status}
                     </span>
                   </div>
                 </div>
               ))}
+              {dbArtworks.length === 0 && (
+                <p className="text-xs text-muted text-center py-4">No artworks in database yet</p>
+              )}
             </div>
           </div>
         </div>

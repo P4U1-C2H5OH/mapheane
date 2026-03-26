@@ -80,6 +80,7 @@ function AppInner() {
   const [artworkId,  setArtworkId]  = useState<string | null>(null);
   const [momentId,   setMomentId]   = useState<string | null>(null);
   const [eventId,    setEventId]    = useState<string | null>(null);
+  const [certRef,    setCertRef]    = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
 
@@ -87,9 +88,10 @@ function AppInner() {
     setPage(p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const goArtwork = (id: string) => { setArtworkId(id); go('artwork'); };
-  const goMoment  = (id: string) => { setMomentId(id);  go('moment-detail'); };
-  const goEvent   = (id: string) => { setEventId(id);   go('event-detail'); };
+  const goArtwork     = (id: string) => { setArtworkId(id); go('artwork'); };
+  const goMoment      = (id: string) => { setMomentId(id);  go('moment-detail'); };
+  const goEvent       = (id: string) => { setEventId(id);   go('event-detail'); };
+  const goCertificate = (ref: string) => { setCertRef(ref); go('certificate'); };
 
   const isAdmin = page === 'admin';
 
@@ -152,11 +154,11 @@ function AppInner() {
           {page === 'shop'          && <ShopPage            key="shop"          onNavigate={go} />}
           {page === 'wishlist'      && <WishlistPage        key="wishlist"      onNavigate={go} onSelectArtwork={goArtwork} />}
           {page === 'contact'       && <ContactPage         key="contact"       onNavigate={go} />}
-          {page === 'track-order'   && <OrderTrackingPage   key="track-order"   onNavigate={go} />}
+          {page === 'track-order'   && <OrderTrackingPage   key="track-order"   onNavigate={go} onViewCertificate={goCertificate} />}
           {page === 'circle'        && <CollectorCirclePage key="circle"        onNavigate={go} />}
           {page === 'presskit'      && <PressKitPage        key="presskit"      onNavigate={go} />}
           {page === 'studio-visit'  && <StudioVisitPage     key="studio-visit"  onNavigate={go} />}
-          {page === 'certificate'   && <CertificatePage     key="certificate"   onNavigate={go} />}
+          {page === 'certificate'   && <CertificatePage     key="certificate"   onNavigate={go} orderRef={certRef ?? undefined} />}
 
           {/* ── LEGAL ── */}
           {page === 'privacy'  && <PrivacyPage  key="privacy"  onNavigate={go} />}

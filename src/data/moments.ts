@@ -48,19 +48,19 @@ I brought only my favorite brush and a single tube of burnt sienna. Painted a sm
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Img9.png',
         alt: 'Empty studio with morning light',
         caption: 'Morning light, 8:45 AM'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Face.jpg',
         alt: 'First brush stroke on studio wall',
         caption: 'The first mark—burnt sienna on white'
       },
       {
         type: 'gallery',
-        url: '/artportfolio.jpg',
+        url: '/Image 1 - Professional Portrait.png',
         alt: 'Studio details',
         caption: 'Finding beauty in empty corners'
       }
@@ -84,13 +84,13 @@ My hands are stained red-brown, dried clay under my fingernails. I could scrub f
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 8 - Cosmic Figures.png',
         alt: 'Hands working clay',
         caption: 'Dialogue in terracotta'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 3 - Vibrant Portrait.png',
         alt: 'Clay vessel in progress',
         caption: 'Taking shape'
       }
@@ -113,19 +113,19 @@ Someone asked about my process. I tried to explain but realized—the process is
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/exhibition_1.jpg',
         alt: 'Gallery opening night',
         caption: 'First guests arriving'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/exhibition_2.jpg',
         alt: 'Artwork on gallery wall',
         caption: 'Ce Père Idéal in its new home'
       },
       {
         type: 'gallery',
-        url: '/artportfolio.jpg',
+        url: '/exhibition_3.jpg',
         alt: 'Guests viewing art',
         caption: 'The moment of connection'
       }
@@ -151,13 +151,13 @@ I'll use this color for the background of the new piece. Or maybe I won't. Somet
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 4 - Purple Figs.png',
         alt: 'Color mixing palette',
         caption: 'Searching for the perfect warmth'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Fruits.jpg',
         alt: 'Color swatches',
         caption: 'Twelve attempts, one success'
       }
@@ -182,13 +182,13 @@ Three hours. Seventeen sketches. Two coffees. Countless stories imagined.`,
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Face closer.jpg',
         alt: 'Sketchbook on café table',
         caption: 'Field notes'
       },
       {
         type: 'gallery',
-        url: '/artportfolio.jpg',
+        url: '/Image 9 - Stylized Face.png',
         alt: 'Quick gesture sketches',
         caption: 'Capturing the essence'
       }
@@ -213,13 +213,13 @@ For now, I'm closing the studio early. Going to walk by the Seine, let the frust
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 7 - Stylized Portrait b-white.png',
         alt: 'Paint-stained studio floor',
         caption: 'Beautiful failure'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 3 - Vibrant Portrait b-white.png',
         alt: 'Scraped canvas',
         caption: 'Layers of "not yet"'
       }
@@ -244,13 +244,13 @@ She signed my canvas before I left. Not her name—just a small stroke of vermil
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 5.png',
         alt: 'Marie Laurent teaching',
         caption: 'Wisdom in motion'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Face.jpg',
         alt: 'Two canvases side by side',
         caption: 'Student and master'
       }
@@ -276,13 +276,13 @@ Tomorrow, back to Paris. But I'm bringing this sunset with me.`,
     media: [
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Sunflower Case.jpg',
         alt: 'Mont Saint-Michel at sunset',
         caption: 'Gold to rose to violet'
       },
       {
         type: 'image',
-        url: '/artportfolio.jpg',
+        url: '/Image 3 - Vibrant Portrait.png',
         alt: 'Sketchbook color notes',
         caption: 'Chasing the light'
       }

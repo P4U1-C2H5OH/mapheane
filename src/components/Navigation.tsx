@@ -198,10 +198,10 @@ export function Navigation({ onNavigate, onSearchOpen }: NavigationProps) {
                           <p className="text-xs text-muted truncate">{user?.email}</p>
                         </div>
                         {[
-                          { icon: ShoppingBag, label: 'My Orders',   action: () => onNavigate?.('cart')    },
-                          { icon: Heart,       label: 'Saved Works', action: () => onNavigate?.('wishlist') },
-                          { icon: Settings,    label: 'Admin',       action: () => onNavigate?.('admin')   },
-                        ].map(({ icon: Icon, label, action }) => (
+                          { icon: ShoppingBag, label: 'My Orders',   action: () => onNavigate?.('cart'),    show: true },
+                          { icon: Heart,       label: 'Saved Works', action: () => onNavigate?.('wishlist'), show: true },
+                          { icon: Settings,    label: 'Admin',       action: () => onNavigate?.('admin'),   show: user?.role === 'admin' || user?.role === 'artist' },
+                        ].filter(item => item.show).map(({ icon: Icon, label, action }) => (
                           <button key={label} onClick={() => { setIsUserMenuOpen(false); action(); }}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-charcoal/70 hover:bg-parchment/40 hover:text-terracotta transition-colors text-left">
                             <Icon className="w-4 h-4 flex-shrink-0" />{label}

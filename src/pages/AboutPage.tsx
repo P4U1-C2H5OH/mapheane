@@ -95,7 +95,7 @@ export function AboutPage({ onNavigate }: AboutPageProps) {
               transition={{ delay: 0.4, duration: 1.1, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="lg:col-span-5 relative aspect-[3/4] overflow-hidden shadow-artwork">
               <div className="absolute inset-0 bg-gradient-to-br from-terracotta/6 to-transparent z-10 pointer-events-none" />
-              <img src="/artportfolio.jpg" alt="Mapheane" draggable={false}
+              <img src="/Image 3 no-bg.png" alt="Mapheane" draggable={false}
                 className="w-full h-full object-cover object-[20%_20%]" />
             </motion.div>
           </div>

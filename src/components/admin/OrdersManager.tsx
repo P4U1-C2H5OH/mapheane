@@ -102,6 +102,23 @@ export function OrdersManager() {
       return;
     }
 
+    const order = orders.find(o => o.id === orderId);
+    if (order?.email && ['verified', 'dispatched', 'delivered', 'cancelled'].includes(next)) {
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: next,
+          customerEmail: order.email,
+          customerName: order.customer,
+          ref: order.ref,
+          items: order.items,
+          total: order.total,
+          tracking: next === 'dispatched' ? tracking : undefined,
+        }),
+      }).catch(err => console.error('notify error', err));
+    }
+
     setOrders(prev => prev.map(o =>
       o.id === orderId
         ? { ...o, status: next, tracking: next === 'dispatched' && tracking ? tracking : o.tracking }

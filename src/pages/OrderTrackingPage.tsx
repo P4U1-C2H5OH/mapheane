@@ -6,7 +6,10 @@ import {
 } from 'lucide-react';
 import { useSEO } from '../hooks/useSEO';
 
-interface Props { onNavigate: (page: any) => void; }
+interface Props {
+  onNavigate: (page: any) => void;
+  onViewCertificate?: (ref: string) => void;
+}
 
 type OrderStatus = 'pending' | 'verified' | 'dispatched' | 'delivered' | 'cancelled';
 
@@ -32,7 +35,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: str
   cancelled:  { label: 'Cancelled',             color: '#9E9890', bg: 'rgba(158,152,144,0.08)', Icon: X           },
 };
 
-export function OrderTrackingPage({ onNavigate }: Props) {
+export function OrderTrackingPage({ onNavigate, onViewCertificate }: Props) {
   useSEO({ title: 'Track Your Order', description: 'Track the status of your Mapheane order using your order reference number.' });
 
   const [ref,     setRef]     = useState('');
@@ -240,6 +243,22 @@ export function OrderTrackingPage({ onNavigate }: Props) {
                   <p className="text-sm text-muted">{result.estimatedDelivery}</p>
                 )}
               </div>
+
+              {/* Certificate CTA — delivered orders only */}
+              {result.status === 'delivered' && onViewCertificate && (
+                <div className="flex items-center justify-between p-4 bg-parchment/50 border border-charcoal/8 mt-2">
+                  <div>
+                    <p className="text-xs font-sans uppercase tracking-widest text-charcoal mb-0.5">Certificate of Authenticity</p>
+                    <p className="text-xs text-muted">Available for this order</p>
+                  </div>
+                  <button
+                    onClick={() => onViewCertificate(result.ref)}
+                    className="flex items-center gap-2 px-4 py-2 bg-charcoal text-background text-xs font-sans uppercase tracking-widest hover:bg-terracotta transition-colors duration-400 flex-shrink-0"
+                  >
+                    View <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Help CTA */}
               <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center pt-2">

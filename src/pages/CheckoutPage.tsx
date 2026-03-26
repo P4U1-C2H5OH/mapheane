@@ -18,7 +18,7 @@ interface CheckoutPageProps {
 // ─── Types ───────────────────────────────────────────────────
 type FulfilmentMethod = 'delivery' | 'pickup';
 type DeliveryZone     = 'maseru' | 'lesotho' | 'southafrica' | 'international';
-type PaymentMethod    = 'mpesa' | 'ecocash';
+type PaymentMethod    = 'mpesa' | 'ecocash' | 'wire';
 type CheckoutStep     = 'fulfilment' | 'payment' | 'confirmation';
 
 // ─── Pickup points ───────────────────────────────────────────
@@ -46,6 +46,7 @@ const PAYMENT_METHODS = [
     name: 'M-Pesa',
     description: 'Pay via Vodacom M-Pesa',
     color: '#00A651',
+    isWire: false,
     details: {
       accountName: 'Mapheane Arts Studio',
       number: '+266 5912 3456',
@@ -65,6 +66,7 @@ const PAYMENT_METHODS = [
     name: 'EcoCash',
     description: 'Pay via EcoCash wallet',
     color: '#E87722',
+    isWire: false,
     details: {
       accountName: 'Mapheane Arts',
       number: '+266 5878 9012',
@@ -77,6 +79,21 @@ const PAYMENT_METHODS = [
         'Save your transaction confirmation',
         'Upload the screenshot below',
       ],
+    },
+  },
+  {
+    id: 'wire' as PaymentMethod,
+    name: 'Bank Wire',
+    description: 'International SWIFT transfer',
+    color: '#2D2A26',
+    isWire: true,
+    details: {
+      accountName: 'Mapheane',
+      // Placeholder — update in Admin Settings once business account is ready
+      bankName: 'Standard Lesotho Bank',
+      accountNumber: '000-000-000-000',
+      swift: 'STANLSLM',
+      branch: 'Kingsway, Maseru, Kingdom of Lesotho',
     },
   },
 ];
@@ -219,25 +236,28 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const handlePaymentSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!paymentMethod) { info('Select a payment method'); return; }
-    if (!proofFile) { setProofError('Please upload your payment screenshot'); return; }
+    if (paymentMethod !== 'wire' && !proofFile) { setProofError('Please upload your payment screenshot'); return; }
     setSubmitting(true);
     try {
-      // 1. Upload proof to Supabase Storage (private bucket)
-      const ext = proofFile.name.split('.').pop() ?? 'jpg';
-      const fileName = `${orderRef}-${Date.now()}.${ext}`;
-      const base64 = proofFile.dataUrl.split(',')[1];
-      const binaryStr = atob(base64);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-      const mimeType = proofFile.dataUrl.split(':')[1]?.split(';')[0] ?? 'image/jpeg';
-      const blob = new Blob([bytes], { type: mimeType });
+      // 1. Upload proof to Supabase Storage (skip for wire transfers)
+      let proofPath: string | null = null;
+      if (paymentMethod !== 'wire' && proofFile) {
+        const ext = proofFile.name.split('.').pop() ?? 'jpg';
+        const fileName = `${orderRef}-${Date.now()}.${ext}`;
+        const base64 = proofFile.dataUrl.split(',')[1];
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        const mimeType = proofFile.dataUrl.split(':')[1]?.split(';')[0] ?? 'image/jpeg';
+        const blob = new Blob([bytes], { type: mimeType });
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('payment-proofs')
-        .upload(fileName, blob, { cacheControl: '3600', upsert: false });
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('payment-proofs')
+          .upload(fileName, blob, { cacheControl: '3600', upsert: false });
 
-      if (uploadError) throw new Error('Proof upload failed: ' + uploadError.message);
-      const proofPath = uploadData.path;
+        if (uploadError) throw new Error('Proof upload failed: ' + uploadError.message);
+        proofPath = uploadData.path;
+      }
 
       // 2. Submit order to API (inserts into Supabase + sends emails)
       const orderRes = await fetch('/api/orders', {
@@ -356,7 +376,9 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
               Thank you, {contact.name.split(' ')[0]}.
             </h1>
             <p className="text-muted leading-relaxed mb-3 max-w-sm mx-auto">
-              Your payment proof has been received. Mapheane will verify and confirm your order within 2 hours during studio hours.
+              {paymentMethod === 'wire'
+                ? 'Please transfer to the bank details provided, using your order reference as the payment note. Your order will be confirmed within 2 business days of funds clearing.'
+                : 'Your payment proof has been received. Mapheane will verify and confirm your order within 2 hours during studio hours.'}
             </p>
             <p className="text-xs text-muted/60 mb-2">A confirmation will be sent to <strong className="text-charcoal">{contact.email}</strong></p>
             <p className="text-xs text-muted/60 mb-10">Order reference: <strong className="text-charcoal">{orderRef}</strong></p>
@@ -659,6 +681,42 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                           </p>
 
                           {/* Account info cards */}
+                          {selectedPayment.isWire ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
+                              <div className="bg-parchment/60 border border-charcoal/6 p-4">
+                                <p className="text-label uppercase tracking-widest text-muted mb-1.5">Account Name</p>
+                                <p className="font-sans font-500 text-charcoal text-sm">{selectedPayment.details.accountName}</p>
+                              </div>
+                              <div className="bg-parchment/60 border border-charcoal/6 p-4">
+                                <p className="text-label uppercase tracking-widest text-muted mb-1.5">Bank</p>
+                                <p className="font-sans font-500 text-charcoal text-sm">{selectedPayment.details.bankName}</p>
+                              </div>
+                              <div className="bg-parchment/60 border border-charcoal/6 p-4">
+                                <p className="text-label uppercase tracking-widest text-muted mb-1.5">Account Number</p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-sans font-500 text-charcoal text-sm tracking-wide">{selectedPayment.details.accountNumber}</p>
+                                  <button type="button" onClick={() => copyToClipboard(selectedPayment.details.accountNumber!, 'phone')}
+                                    className="text-muted hover:text-charcoal transition-colors" aria-label="Copy account number">
+                                    {copied === 'phone' ? <Check className="w-3.5 h-3.5 text-sage" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="bg-parchment/60 border border-charcoal/6 p-4">
+                                <p className="text-label uppercase tracking-widest text-muted mb-1.5">SWIFT / BIC</p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-sans font-500 text-charcoal text-sm tracking-widest">{selectedPayment.details.swift}</p>
+                                  <button type="button" onClick={() => copyToClipboard(selectedPayment.details.swift!, 'swift')}
+                                    className="text-muted hover:text-charcoal transition-colors" aria-label="Copy SWIFT code">
+                                    {copied === 'swift' ? <Check className="w-3.5 h-3.5 text-sage" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="sm:col-span-2 bg-parchment/60 border border-charcoal/6 p-4">
+                                <p className="text-label uppercase tracking-widest text-muted mb-1.5">Branch / Address</p>
+                                <p className="font-sans font-500 text-charcoal text-sm">{selectedPayment.details.branch}</p>
+                              </div>
+                            </div>
+                          ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
                             {/* Name */}
                             <div className="bg-parchment/60 border border-charcoal/6 p-4">
@@ -678,7 +736,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                                 </div>
                                 <button
                                   type="button"
-                                  onClick={() => copyToClipboard(selectedPayment.details.number, 'phone')}
+                                  onClick={() => copyToClipboard(selectedPayment.details.number!, 'phone')}
                                   className="flex-shrink-0 text-muted hover:text-charcoal transition-colors"
                                   aria-label="Copy number"
                                 >
@@ -689,6 +747,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                               </div>
                             </div>
                           </div>
+                          )}
 
                           {/* Amount to pay */}
                           <div className="bg-terracotta/6 border border-terracotta/20 p-4 mb-7">
@@ -717,11 +776,11 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                             </div>
                           </div>
 
-                          {/* Step-by-step instructions */}
-                          <div className="mb-7">
+                          {/* Step-by-step instructions — mobile wallets only */}
+                          {!selectedPayment.isWire && <div className="mb-7">
                             <p className="text-label uppercase tracking-widest text-muted mb-4">How to Pay</p>
                             <ol className="space-y-2">
-                              {selectedPayment.details.instructions.map((inst, i) => (
+                              {(selectedPayment.details.instructions ?? []).map((inst, i) => (
                                 <li key={i} className="flex items-start gap-3 text-sm text-charcoal/70">
                                   <span
                                     className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-white text-[10px] font-sans mt-0.5"
@@ -733,10 +792,10 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                                 </li>
                               ))}
                             </ol>
-                          </div>
+                          </div>}
 
-                          {/* Proof of payment upload */}
-                          <div>
+                          {/* Proof of payment upload — mobile wallets only */}
+                          {!selectedPayment.isWire && <div>
                             <p className="text-label uppercase tracking-widest text-muted mb-3">
                               Upload Proof of Payment <span className="text-terracotta">*</span>
                             </p>
@@ -795,7 +854,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                                 <p className="text-xs text-red-400">{proofError}</p>
                               </div>
                             )}
-                          </div>
+                          </div>}
                         </div>
                       </motion.div>
                     )}
@@ -803,7 +862,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
 
                   <button
                     type="submit"
-                    disabled={submitting || !paymentMethod || !proofFile}
+                    disabled={submitting || !paymentMethod || (paymentMethod !== 'wire' && !proofFile)}
                     className="w-full flex items-center justify-center gap-3 bg-terracotta text-white py-4 text-xs font-sans uppercase tracking-[0.2em] hover:bg-terracottaDark transition-colors duration-400 disabled:opacity-50 disabled:cursor-not-allowed shadow-button hover:shadow-button-hover"
                   >
                     {submitting

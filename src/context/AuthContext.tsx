@@ -15,7 +15,8 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  authLoading: boolean;
+  login: (email: string, password: string) => Promise<User>;
   loginWithGoogle: () => Promise<void>;
   loginWithFacebook: () => Promise<void>;
   loginWithInstagram: () => Promise<void>;
@@ -37,7 +38,7 @@ function mapUser(
     id: su.id,
     name: profile?.name ?? su.user_metadata?.name ?? su.user_metadata?.full_name ?? su.email?.split('@')[0] ?? 'User',
     email: su.email ?? '',
-    avatar: su.user_metadata?.avatar_url,
+    avatar: su.user_metadata?.avatar_url ?? su.user_metadata?.picture,
     provider,
     role: (profile?.role as User['role']) ?? 'user',
     favoriteArtworks: [],
@@ -56,8 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Safety net: if Supabase hangs (stale session, network issue), unblock after 4s
-    const timeout = setTimeout(() => setLoading(false), 4000);
+    // Safety net: if Supabase hangs (stale session, network issue), unblock after 2s
+    const timeout = setTimeout(() => setLoading(false), 2000);
 
     // Restore session on mount — gracefully handle missing/placeholder Supabase credentials
     supabase.auth.getSession()
@@ -144,7 +145,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
+    localStorage.removeItem('mapheane-cart-v2');
+    localStorage.removeItem('mapheane_wishlist');
+    window.location.href = '/';
   };
 
   const resetPassword = async (email: string) => {
@@ -154,13 +157,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw new Error(error.message);
   };
 
-  if (loading) return null; // Prevent flash of unauthenticated content
-
   return (
     <AuthContext.Provider
       value={{
         user,
         isAuthenticated: !!user,
+        authLoading: loading,
         login,
         loginWithGoogle,
         loginWithFacebook,

@@ -19,14 +19,14 @@ export function AboutSection({ onNavigate }: AboutSectionProps) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-center">
 
           {/* Portrait */}
-          <div className={`lg:col-span-5 transition-all duration-1000 ease-luxury ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
-            <div className="relative w-full aspect-[4/5] overflow-hidden group shadow-artwork">
-              <div className="absolute inset-0 bg-gradient-to-br from-terracotta/0 group-hover:from-terracotta/8 to-transparent transition-all duration-700 z-10 pointer-events-none" />
+          <div className={`lg:col-span-6 transition-all duration-1000 ease-luxury ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
+            <div className="relative w-full aspect-[4/5] overflow-hidden group shadow-artwork group-hover:shadow-artwork-hover transition-shadow duration-500 artwork-container">
+              <div className="absolute inset-0 bg-terracotta/0 group-hover:bg-terracotta/10 transition-colors duration-700 z-10 pointer-events-none" />
               <img
-                src="/artportfolio.jpg"
+                src="/Img9.png"
                 alt="Mapheane — Contemporary Artist"
                 draggable={false}
-                className="w-full h-full object-cover object-[20%_30%] filter saturate-[0.92] group-hover:saturate-100 transition-all duration-700"
+                className="w-full h-full object-cover object-[20%_30%] filter saturate-[0.92] group-hover:saturate-100 group-hover:scale-[1.03] transition-all duration-700"
               />
               {/* Location tag */}
               <div className="absolute bottom-5 left-5 z-20">
@@ -38,7 +38,7 @@ export function AboutSection({ onNavigate }: AboutSectionProps) {
           </div>
 
           {/* Text */}
-          <div className={`lg:col-span-7 transition-all duration-1000 delay-200 ease-luxury ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
+          <div className={`lg:col-span-6 transition-all duration-1000 delay-200 ease-luxury ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
 
             {/* Big name */}
             <h2 className="font-serif text-7xl md:text-9xl italic text-charcoal mb-2 leading-none" style={{ letterSpacing: '-0.025em' }}>

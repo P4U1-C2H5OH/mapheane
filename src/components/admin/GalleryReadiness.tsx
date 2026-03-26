@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Award, CheckCircle, Circle, AlertCircle, ChevronDown, ChevronUp,
@@ -189,7 +190,29 @@ export function GalleryReadiness() {
   const [emailGallery, setEmailGallery]   = useState<string | null>(null);
   const [copied, setCopied]               = useState(false);
 
-  const toggle = (id: string) => setCheckState(s => ({ ...s, [id]: !s[id] }));
+  // Load persisted checklist from Supabase on mount
+  useEffect(() => {
+    supabase.from('studio_settings')
+      .select('value')
+      .eq('key', 'gallery_readiness_checks')
+      .single()
+      .then(({ data }) => {
+        if (data?.value && typeof data.value === 'object') {
+          setCheckState(prev => ({ ...prev, ...(data.value as Record<string, boolean>) }));
+        }
+      });
+  }, []);
+
+  const toggle = (id: string) => {
+    setCheckState(s => {
+      const next = { ...s, [id]: !s[id] };
+      supabase.from('studio_settings').upsert(
+        { key: 'gallery_readiness_checks', value: next, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      return next;
+    });
+  };
 
   const handleExport = (type: 'cv' | 'presskit') => {
     setExporting(type);
