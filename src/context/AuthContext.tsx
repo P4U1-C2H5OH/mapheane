@@ -101,8 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string): Promise<User> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
-    const profile = data.session ? await fetchProfile(data.session.user.id) : null;
-    const mappedUser = mapUser(data.session!, profile);
+    if (!data.session) {
+      throw new Error('Email not confirmed — please check your inbox for a verification link, then try again.');
+    }
+    const profile = await fetchProfile(data.session.user.id);
+    const mappedUser = mapUser(data.session, profile);
     setUser(mappedUser);
     return mappedUser;
   };

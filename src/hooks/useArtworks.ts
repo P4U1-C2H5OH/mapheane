@@ -26,23 +26,32 @@ export function useArtworks() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Fallback after 6s — handles Supabase cold-start on free tier
+    const timeout = setTimeout(() => {
+      setArtworks(staticArtworks);
+      setLoading(false);
+    }, 6000);
+
     supabase
       .from('artworks')
       .select('*')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
+        clearTimeout(timeout);
         if (data && data.length > 0) {
           setArtworks(data.map(mapRow));
         } else {
-          // DB not yet seeded — fall back to static data so the site isn't blank
           setArtworks(staticArtworks);
         }
         setLoading(false);
       })
       .catch(() => {
+        clearTimeout(timeout);
         setArtworks(staticArtworks);
         setLoading(false);
       });
+
+    return () => clearTimeout(timeout);
   }, []);
 
   return { artworks, loading };
