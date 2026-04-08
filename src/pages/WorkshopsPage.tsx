@@ -24,9 +24,9 @@ const RETREATS = [
     location: 'Maseru & Malealea, Lesotho',
     description: 'Three days painting and drawing in the highlands of Lesotho. Morning studio sessions with Mapheane. Afternoon excursions to mountain villages, Basotho cultural sites, and the dramatic landscape that informs her work.',
     highlights: ['2 full studio sessions', 'Guided cultural excursion', 'Accommodation at Malealea Lodge', 'All meals included', 'Materials provided', 'Small group intimacy'],
-    image: '/lesothowinter.jpg',
+    image: 'https://res.cloudinary.com/doy7pcli0/image/upload/v1775624399/lesothowinter_e3paoa.jpg',
     available: true,
-    nextDate: 'June 2025',
+    nextDate: 'June 2026',
   },
   {
     title: 'Immersive Highlands Residency',
@@ -37,9 +37,9 @@ const RETREATS = [
     location: 'Lesotho Mountain Studio',
     description: 'For serious practitioners ready to push their practice. Five to seven days in the Mountain Kingdom, working daily in Mapheane\'s studio, exploring the land, and building a body of work that belongs to no place else on earth.',
     highlights: ['Daily 5-hour studio sessions', 'Personal critique sessions', 'Cultural immersion programme', 'Premium accommodation', 'All meals & transport', 'Professional documentation of your work'],
-    image: '/maletsunyane.jpg',
+    image: 'https://res.cloudinary.com/doy7pcli0/image/upload/v1775624377/maletsunyane_csp9j5.jpg',
     available: true,
-    nextDate: 'September 2025',
+    nextDate: 'September 2026',
   },
 ];
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { ArrowRight } from 'lucide-react';
+import { STATIC_IMAGES } from '../lib/staticImages';
 
 interface AboutSectionProps {
   onNavigate?: (page: any) => void;
@@ -23,7 +24,7 @@ export function AboutSection({ onNavigate }: AboutSectionProps) {
             <div className="relative w-full aspect-[4/5] overflow-hidden group shadow-artwork group-hover:shadow-artwork-hover transition-shadow duration-500 artwork-container">
               <div className="absolute inset-0 bg-terracotta/0 group-hover:bg-terracotta/10 transition-colors duration-700 z-10 pointer-events-none" />
               <img
-                src="/Img9.png"
+                src={STATIC_IMAGES.artist}
                 alt="Mapheane — Contemporary Artist"
                 draggable={false}
                 className="w-full h-full object-cover object-[20%_30%] filter saturate-[0.92] group-hover:saturate-100 group-hover:scale-[1.03] transition-all duration-700"

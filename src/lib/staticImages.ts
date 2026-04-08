@@ -10,13 +10,11 @@ const CDN = 'https://res.cloudinary.com/doy7pcli0/image/upload/f_auto,q_auto/map
 
 export const STATIC_IMAGES = {
   /** About section — artist detail */
-  artist:      `${CDN}/Img9.png`,
+  artist:      'https://res.cloudinary.com/doy7pcli0/image/upload/v1775624029/Img9_fiuwbd.png',
   /** About page — artist / secondary hero */
-  heroSecondary:         `${CDN}/Image 3 no-bg.png`,
-  /** About section — field panorama */
-  field:        `${CDN}/image-4.png`,
+  heroSecondary: 'https://res.cloudinary.com/doy7pcli0/image/upload/v1775624028/Image_3_no-bg_widcuq.png',
   /** About page - basotho_context */
-  falls: `${CDN}/falls.jpg`,
+  falls: 'https://res.cloudinary.com/doy7pcli0/image/upload/v1775624019/falls_g5uhos.jpg',
   /** Hero section cover */
-  hero:         `${CDN}/Image 7 - Stylized Portrait b-white.png`,
+  hero:         'https://res.cloudinary.com/doy7pcli0/image/upload/v1775624029/Image_7_-_Stylized_Portrait_b-white_o9d8r3.png',
 } as const;
