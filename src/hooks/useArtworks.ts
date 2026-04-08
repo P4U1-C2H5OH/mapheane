@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Artwork, artworks as staticArtworks } from '../data/artworks';
+import { Artwork } from '../data/artworks';
 
 function mapRow(row: Record<string, unknown>): Artwork {
   return {
@@ -26,32 +26,22 @@ export function useArtworks() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fallback after 6s — handles Supabase cold-start on free tier
-    const timeout = setTimeout(() => {
-      setArtworks(staticArtworks);
-      setLoading(false);
-    }, 6000);
-
     supabase
       .from('artworks')
       .select('*')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        clearTimeout(timeout);
         if (data && data.length > 0) {
           setArtworks(data.map(mapRow));
         } else {
-          setArtworks(staticArtworks);
+          setArtworks([]);
         }
         setLoading(false);
       })
       .catch(() => {
-        clearTimeout(timeout);
-        setArtworks(staticArtworks);
+        setArtworks([]);
         setLoading(false);
       });
-
-    return () => clearTimeout(timeout);
   }, []);
 
   return { artworks, loading };

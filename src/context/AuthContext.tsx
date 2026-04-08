@@ -99,15 +99,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-    if (!data.session) {
-      throw new Error('Email not confirmed — please check your inbox for a verification link, then try again.');
-    }
-    const profile = await fetchProfile(data.session.user.id);
-    const mappedUser = mapUser(data.session, profile);
-    setUser(mappedUser);
-    return mappedUser;
+    // Add timeout to prevent hanging
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Login timed out — check your connection and try again')), 10000)
+    );
+
+    const loginPromise = supabase.auth.signInWithPassword({ email, password })
+      .then(({ data, error }) => {
+        if (error) throw new Error(error.message);
+        if (!data.session) {
+          throw new Error('Email not confirmed — please check your inbox for a verification link, then try again.');
+        }
+        return fetchProfile(data.session.user.id).then(profile => {
+          const mappedUser = mapUser(data.session, profile);
+          setUser(mappedUser);
+          return mappedUser;
+        });
+      });
+
+    return Promise.race([loginPromise, timeout]);
   };
 
   const loginWithGoogle = async () => {

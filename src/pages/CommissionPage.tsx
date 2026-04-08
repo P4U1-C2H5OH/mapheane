@@ -92,6 +92,15 @@ const PRICING = [
   },
 ];
 
+const COMMISSION_GALLERY_IMAGES = [
+  'https://res.cloudinary.com/doy7pcli0/image/upload/v1775626142/Professional_Artwork_3_g217hs.png',
+  'https://res.cloudinary.com/doy7pcli0/image/upload/v1775626060/Professional_Portrait_Photography_ahiow0.jpg',
+  'https://res.cloudinary.com/doy7pcli0/image/upload/v1775626734/Professional_Art_Photography_wpjdao.jpg',
+  'https://res.cloudinary.com/doy7pcli0/image/upload/v1775626818/Image_5_-_Abstract_Female_Busts_uqzsdv.png',
+  'https://res.cloudinary.com/doy7pcli0/image/upload/v1775626811/Image_4_-_Purple_Figs_uaeyjn.png',
+  'https://res.cloudinary.com/doy7pcli0/image/upload/v1775626765/Image_1_-_Professional_Portrait_fjvxtp.png',
+] as const;
+
 const FAQS = [
   {
     q: 'Can I commission a portrait?',
@@ -412,7 +421,7 @@ export function CommissionPage({ onNavigate }: CommissionPageProps) {
               <p className="text-muted mt-4 max-w-md mx-auto">Commissions span private homes in Johannesburg, Maseru, Paris, and Brussels — each a deeply personal collaboration.</p>
             </div>
 
-            {/* Grid — use artportfolio.jpg as placeholder throughout */}
+            {/* Grid — use dedicated commission images instead of the single placeholder */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {[
                 { title: 'Family Portrait Study',     medium: 'Charcoal on Paper',           dims: '60×80cm' },
@@ -431,7 +440,7 @@ export function CommissionPage({ onNavigate }: CommissionPageProps) {
                   className="group relative overflow-hidden bg-parchment aspect-[3/4]"
                 >
                   <img
-                    src="/artportfolio.jpg"
+                    src={COMMISSION_GALLERY_IMAGES[i]}
                     alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-700 ease-luxury"
                     draggable={false}
