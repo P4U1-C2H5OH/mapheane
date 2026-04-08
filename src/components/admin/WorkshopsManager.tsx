@@ -101,38 +101,48 @@ export function WorkshopsManager() {
     .reduce((s, w) => s + w.bookings.reduce((b, bk) => b + bk.tickets, 0), 0);
 
   const handleAdd = async () => {
-    if (!newForm.title) return;
+    if (!newForm.title?.trim()) {
+      alert('Please provide a workshop title.');
+      return;
+    }
     setSaving(true);
-    const { data, error } = await supabase
-      .from('workshops')
-      .insert({
-        title:       newForm.title,
-        medium:      newForm.medium,
-        date:        newForm.date,
-        time:        newForm.time,
-        duration:    newForm.duration,
-        location:    newForm.location,
-        capacity:    Number(newForm.capacity) || 8,
-        price_local: newForm.priceLocal,
-        price_intl:  newForm.priceIntl,
-        status:      'upcoming',
-        revenue:     0,
-        description: '',
-        materials:   newForm.materials.split(',').map(m => m.trim()).filter(Boolean),
-        bookings:    [],
-        waitlist:    [],
-      })
-      .select()
-      .single();
-    setSaving(false);
-    if (!error && data) {
-      setWorkshops(prev => [mapRow(data), ...prev]);
-      setCreating(false);
-      setNewForm({
-        title: '', medium: '', date: '', time: '', duration: '',
-        location: "Mapheane's Studio, Maseru", capacity: '8',
-        priceLocal: '', priceIntl: '', description: '', materials: '',
-      });
+    try {
+      const { data, error } = await supabase
+        .from('workshops')
+        .insert({
+          title:       newForm.title,
+          medium:      newForm.medium,
+          date:        newForm.date,
+          time:        newForm.time,
+          duration:    newForm.duration,
+          location:    newForm.location,
+          capacity:    Number(newForm.capacity) || 8,
+          price_local: newForm.priceLocal,
+          price_intl:  newForm.priceIntl,
+          status:      'upcoming',
+          revenue:     0,
+          description: '',
+          materials:   newForm.materials.split(',').map(m => m.trim()).filter(Boolean),
+          bookings:    [],
+          waitlist:    [],
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      if (data) {
+        setWorkshops(prev => [mapRow(data), ...prev]);
+        setCreating(false);
+        setNewForm({
+          title: '', medium: '', date: '', time: '', duration: '',
+          location: "Mapheane's Studio, Maseru", capacity: '8',
+          priceLocal: '', priceIntl: '', description: '', materials: '',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create workshop:', error);
+      alert('Unable to create the workshop right now. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 

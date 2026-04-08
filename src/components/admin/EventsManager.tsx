@@ -72,16 +72,22 @@ export function EventsManager() {
   const [formData, setFormData]   = useState<Partial<DbEvent>>({});
   const [saving, setSaving]       = useState(false);
   const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
     supabase
       .from('events')
       .select('*')
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setEvents((data ?? []).map(mapRow));
-        setLoading(false);
-      });
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load events:', error);
+          setError('Unable to load events. Please refresh.');
+        } else {
+          setEvents((data ?? []).map(mapRow));
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const handleCreate = () => {
@@ -96,8 +102,13 @@ export function EventsManager() {
   };
 
   const handleSave = async () => {
-    if (!formData.title) return;
+    if (!formData.title?.trim() || !formData.description?.trim() || !formData.location?.venue?.trim() || !formData.location?.city?.trim() || !formData.location?.country?.trim() || !formData.schedule?.startDate || !formData.schedule?.endDate) {
+      alert('Please provide all required fields: title, description, venue, city, country, and dates.');
+      return;
+    }
+
     setSaving(true);
+    setError(null);
     const payload = {
       title:         formData.title,
       subtitle:      formData.subtitle     ?? null,
@@ -116,17 +127,25 @@ export function EventsManager() {
       contact_data:  formData.contact      ?? null,
     };
 
-    if (isCreating) {
-      const { data, error } = await supabase.from('events').insert(payload).select().single();
-      if (!error && data) setEvents(prev => [mapRow(data), ...prev]);
-      setIsCreating(false);
-    } else if (editingId) {
-      const { error } = await supabase.from('events').update(payload).eq('id', editingId);
-      if (!error) setEvents(prev => prev.map(e => e.id === editingId ? { ...e, ...formData } as DbEvent : e));
-      setEditingId(null);
+    try {
+      if (isCreating) {
+        const { data, error } = await supabase.from('events').insert(payload).select().single();
+        if (error) throw error;
+        if (data) setEvents(prev => [mapRow(data), ...prev]);
+        setIsCreating(false);
+      } else if (editingId) {
+        const { error } = await supabase.from('events').update(payload).eq('id', editingId);
+        if (error) throw error;
+        setEvents(prev => prev.map(e => e.id === editingId ? { ...e, ...formData } as DbEvent : e));
+        setEditingId(null);
+      }
+      setFormData({});
+    } catch (error) {
+      console.error('Failed to save event:', error);
+      alert('Unable to save the event right now. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setFormData({});
   };
 
   const handleEdit = (event: DbEvent) => {
@@ -136,8 +155,14 @@ export function EventsManager() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this event? This cannot be undone.')) return;
-    const { error } = await supabase.from('events').delete().eq('id', id);
-    if (!error) setEvents(prev => prev.filter(e => e.id !== id));
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) throw error;
+      setEvents(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      alert('Unable to delete the event. Please try again.');
+    }
   };
 
   const handleCancel = () => { setIsCreating(false); setEditingId(null); setFormData({}); };
@@ -146,8 +171,14 @@ export function EventsManager() {
     const ev = events.find(e => e.id === id);
     if (!ev) return;
     const featured = !ev.featured;
-    const { error } = await supabase.from('events').update({ featured }).eq('id', id);
-    if (!error) setEvents(prev => prev.map(e => e.id === id ? { ...e, featured } : e));
+    try {
+      const { error } = await supabase.from('events').update({ featured }).eq('id', id);
+      if (error) throw error;
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, featured } : e));
+    } catch (error) {
+      console.error('Failed to update featured status:', error);
+      alert('Unable to update event status. Please try again.');
+    }
   };
 
   const isEditing = isCreating || editingId !== null;

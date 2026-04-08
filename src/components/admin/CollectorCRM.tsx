@@ -269,35 +269,40 @@ export function CollectorCRM() {
   const handleAdd = async () => {
     if (!newForm.name || !newForm.email) return;
     setSaving(true);
-    const mediumPref = newForm.mediumPref
-      ? newForm.mediumPref.split(',').map(m => m.trim()).filter(Boolean)
-      : [];
-    const { data, error } = await supabase
-      .from('collectors')
-      .insert({
-        name:           newForm.name,
-        email:          newForm.email,
-        phone:          newForm.phone || null,
-        location:       newForm.location || '—',
-        country:        newForm.country || '—',
-        tier:           newForm.segment,
-        medium_pref:    mediumPref,
-        source:         newForm.source || 'Direct',
-        notes:          newForm.notes,
-        ltv_zar:        0,
-        total_spend:    0,
-        purchase_count: 0,
-        wishlist_count: 0,
-        last_contact:   'Just added',
-        tags:           [],
-      })
-      .select()
-      .single();
-    setSaving(false);
-    if (!error && data) {
+    try {
+      const mediumPref = newForm.mediumPref
+        ? newForm.mediumPref.split(',').map(m => m.trim()).filter(Boolean)
+        : [];
+      const { data, error } = await supabase
+        .from('collectors')
+        .insert({
+          name:           newForm.name,
+          email:          newForm.email,
+          phone:          newForm.phone || null,
+          location:       newForm.location || '—',
+          country:        newForm.country || '—',
+          tier:           newForm.segment,
+          medium_pref:    mediumPref,
+          source:         newForm.source || 'Direct',
+          notes:          newForm.notes,
+          ltv_zar:        0,
+          total_spend:    0,
+          purchase_count: 0,
+          wishlist_count: 0,
+          last_contact:   'Just added',
+          tags:           [],
+        })
+        .select()
+        .single();
+      if (error) throw new Error('Failed to add collector.');
       setCollectors(prev => [mapRow(data), ...prev]);
       setAdding(false);
       setNewForm({ name: '', email: '', phone: '', location: '', country: '', segment: 'Prospect', source: '', mediumPref: '', notes: '' });
+    } catch (err: unknown) {
+      console.error('Error adding collector:', err);
+      alert(err instanceof Error ? err.message : 'Failed to add collector');
+    } finally {
+      setSaving(false);
     }
   };
 

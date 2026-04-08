@@ -260,38 +260,47 @@ export function CommissionPipeline() {
 
   const handleAdvance = async (stage: Stage) => {
     if (!selected) return;
-    const { error } = await supabase.from('commissions').update({ stage }).eq('id', selected.id);
-    if (!error) {
+    try {
+      const { error } = await supabase.from('commissions').update({ stage }).eq('id', selected.id);
+      if (error) throw new Error('Failed to advance commission stage.');
       setCommissions(prev => prev.map(c => c.id === selected.id ? { ...c, stage } : c));
       setSelected(prev => prev ? { ...prev, stage } : null);
+    } catch (err: unknown) {
+      console.error('Error advancing commission:', err);
+      alert(err instanceof Error ? err.message : 'Failed to advance commission');
     }
   };
 
   const handleAdd = async () => {
     if (!newForm.client || !newForm.email || !newForm.description) return;
     setSaving(true);
-    const { data, error } = await supabase
-      .from('commissions')
-      .insert({
-        client:       newForm.client,
-        email:        newForm.email,
-        medium:       newForm.medium,
-        description:  newForm.description,
-        value_zar:    Number(newForm.value) || 0,
-        deposit_paid: false,
-        stage:        'inquiry',
-        priority:     newForm.priority,
-        due_date:     newForm.dueDate || null,
-        notes:        newForm.notes   || null,
-        progress:     null,
-      })
-      .select()
-      .single();
-    setSaving(false);
-    if (!error && data) {
+    try {
+      const { data, error } = await supabase
+        .from('commissions')
+        .insert({
+          client:       newForm.client,
+          email:        newForm.email,
+          medium:       newForm.medium,
+          description:  newForm.description,
+          value_zar:    Number(newForm.value) || 0,
+          deposit_paid: false,
+          stage:        'inquiry',
+          priority:     newForm.priority,
+          due_date:     newForm.dueDate || null,
+          notes:        newForm.notes   || null,
+          progress:     null,
+        })
+        .select()
+        .single();
+      if (error) throw new Error('Failed to add commission.');
       setCommissions(prev => [mapRow(data), ...prev]);
       setAdding(false);
       setNewForm({ client: '', email: '', medium: 'Painting', description: '', value: '', priority: 'normal', dueDate: '', notes: '' });
+    } catch (err: unknown) {
+      console.error('Error adding commission:', err);
+      alert(err instanceof Error ? err.message : 'Failed to add commission');
+    } finally {
+      setSaving(false);
     }
   };
 

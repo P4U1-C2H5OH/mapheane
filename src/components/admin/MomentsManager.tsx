@@ -53,16 +53,22 @@ export function MomentsManager() {
   const [showAddField, setShowAddField] = useState(false);
   const [saving, setSaving]           = useState(false);
   const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
 
   useEffect(() => {
     supabase
       .from('moments')
       .select('*')
       .order('date', { ascending: false })
-      .then(({ data }) => {
-        setMoments((data ?? []).map(mapRow));
-        setLoading(false);
-      });
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load moments:', error);
+          setError('Unable to load moments. Please refresh.');
+        } else {
+          setMoments((data ?? []).map(mapRow));
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const handleCreate = () => {
@@ -75,8 +81,13 @@ export function MomentsManager() {
   };
 
   const handleSave = async () => {
-    if (!formData.title || !formData.content) return;
+    if (!formData.title?.trim() || !formData.content?.trim()) {
+      alert('Please provide both a title and content before publishing.');
+      return;
+    }
+
     setSaving(true);
+    setError(null);
     const payload = {
       title:    formData.title,
       date:     formData.date,
@@ -90,18 +101,26 @@ export function MomentsManager() {
       mood:     formData.mood     ?? null,
     };
 
-    if (isCreating) {
-      const { data, error } = await supabase.from('moments').insert(payload).select().single();
-      if (!error && data) setMoments(prev => [mapRow(data), ...prev]);
-      setIsCreating(false);
-    } else if (editingId) {
-      const { error } = await supabase.from('moments').update(payload).eq('id', editingId);
-      if (!error) setMoments(prev => prev.map(m => m.id === editingId ? { ...m, ...formData } as DbMoment : m));
-      setEditingId(null);
+    try {
+      if (isCreating) {
+        const { data, error } = await supabase.from('moments').insert(payload).select().single();
+        if (error) throw error;
+        if (data) setMoments(prev => [mapRow(data), ...prev]);
+        setIsCreating(false);
+      } else if (editingId) {
+        const { error } = await supabase.from('moments').update(payload).eq('id', editingId);
+        if (error) throw error;
+        setMoments(prev => prev.map(m => m.id === editingId ? { ...m, ...formData } as DbMoment : m));
+        setEditingId(null);
+      }
+      setFormData({});
+      setCustomFields([]);
+    } catch (error) {
+      console.error('Failed to save moment:', error);
+      alert('Unable to publish the moment right now. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setFormData({});
-    setCustomFields([]);
   };
 
   const handleEdit = (moment: DbMoment) => {
