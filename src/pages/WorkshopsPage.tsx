@@ -6,6 +6,7 @@ import {
   CheckCircle, ChevronDown, ChevronUp, Globe, Plane
 } from 'lucide-react';
 import { useWorkshops, DbWorkshop } from '../hooks/useWorkshops';
+import { STATIC_IMAGES } from '../lib/staticImages';
 
 interface WorkshopsPageProps {
   onNavigate: (page: any) => void;
@@ -23,7 +24,7 @@ const RETREATS = [
     location: 'Maseru & Malealea, Lesotho',
     description: 'Three days painting and drawing in the highlands of Lesotho. Morning studio sessions with Mapheane. Afternoon excursions to mountain villages, Basotho cultural sites, and the dramatic landscape that informs her work.',
     highlights: ['2 full studio sessions', 'Guided cultural excursion', 'Accommodation at Malealea Lodge', 'All meals included', 'Materials provided', 'Small group intimacy'],
-    image: '/artportfolio.jpg',
+    image: '/lesothowinter.jpg',
     available: true,
     nextDate: 'June 2025',
   },
@@ -36,7 +37,7 @@ const RETREATS = [
     location: 'Lesotho Mountain Studio',
     description: 'For serious practitioners ready to push their practice. Five to seven days in the Mountain Kingdom, working daily in Mapheane\'s studio, exploring the land, and building a body of work that belongs to no place else on earth.',
     highlights: ['Daily 5-hour studio sessions', 'Personal critique sessions', 'Cultural immersion programme', 'Premium accommodation', 'All meals & transport', 'Professional documentation of your work'],
-    image: '/artportfolio.jpg',
+    image: '/maletsunyane.jpg',
     available: true,
     nextDate: 'September 2025',
   },
@@ -283,9 +284,9 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3, duration: 1.0 }}
-              className="relative aspect-square overflow-hidden"
+              className="relative aspect-[3/4] overflow-hidden"
             >
-              <img src="/artportfolio.jpg" alt="Workshop in Mapheane's studio"
+              <img src={STATIC_IMAGES.heroSecondary} alt="Workshop in Mapheane's studio"
                 className="w-full h-full object-cover" draggable={false} />
               <div className="absolute inset-0 bg-gradient-to-br from-sage/8 to-transparent pointer-events-none" />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-charcoal/70 to-transparent p-6">

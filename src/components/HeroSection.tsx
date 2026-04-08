@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { ArrowDown, Instagram, Facebook, Mail } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import { STATIC_IMAGES } from '../lib/staticImages';
 
 const PRESS_FEATURES = [
   { outlet: 'Art Africa Magazine', note: 'Feature · 2024' },
@@ -129,7 +130,7 @@ export function HeroSection() {
             {/* Warm tint layer */}
             <div className="absolute inset-0 bg-gradient-to-br from-terracotta/6 to-transparent z-10 pointer-events-none" />
             <img
-              src="/Image 7 - Stylized Portrait b-white.png"
+              src={STATIC_IMAGES.hero}
               alt="Mapheane — Featured Artwork"
               className="w-full h-full object-cover object-center hover:scale-[1.03] transition-transform duration-[1800ms] ease-out"
               draggable="false"

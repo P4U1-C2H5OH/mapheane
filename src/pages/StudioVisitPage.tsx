@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, MapPin, Clock, Calendar, Users, ChevronDown, ChevronUp, Check, Plane } from 'lucide-react';
 import { useSEO } from '../hooks/useSEO';
+import { STATIC_IMAGES } from '../lib/staticImages';
 
 interface StudioVisitPageProps {
   onNavigate: (page: any) => void;
@@ -241,10 +242,10 @@ export function StudioVisitPage({ onNavigate }: StudioVisitPageProps) {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3, duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="relative aspect-[4/5] overflow-hidden"
+              className="relative aspect-[3/4] overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-terracotta/8 to-transparent z-10 pointer-events-none" />
-              <img src="/artportfolio.jpg" alt="The studio in Maseru" draggable={false}
+              <img src={STATIC_IMAGES.heroSecondary} alt="The studio in Maseru" draggable={false}
                 className="w-full h-full object-cover" />
               <div className="absolute bottom-5 left-5 right-5 z-20">
                 <p className="font-serif italic text-white/80 text-sm bg-ink/40 backdrop-blur-sm px-4 py-3">

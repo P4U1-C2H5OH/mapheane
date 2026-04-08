@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { CommissionModal } from '../components/CommissionModal';
 import { useScrollReveal } from '../hooks/useScrollReveal';
+import { STATIC_IMAGES } from '../lib/staticImages';
 
 interface CommissionPageProps {
   onNavigate: (page: any) => void;
@@ -291,11 +292,11 @@ export function CommissionPage({ onNavigate }: CommissionPageProps) {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3, duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="relative aspect-[4/5] overflow-hidden"
+                className="relative aspect-[3/4] overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-terracotta/8 to-transparent z-10 pointer-events-none" />
                 <img
-                  src="/artportfolio.jpg"
+                  src={STATIC_IMAGES.heroSecondary}
                   alt="Mapheane in studio"
                   className="w-full h-full object-cover"
                   draggable={false}

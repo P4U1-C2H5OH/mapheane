@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
+import { STATIC_IMAGES } from '../lib/staticImages';
 
 interface AboutPageProps {
   onNavigate: (page: any) => void;
@@ -95,7 +96,7 @@ export function AboutPage({ onNavigate }: AboutPageProps) {
               transition={{ delay: 0.4, duration: 1.1, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="lg:col-span-5 relative aspect-[3/4] overflow-hidden shadow-artwork">
               <div className="absolute inset-0 bg-gradient-to-br from-terracotta/6 to-transparent z-10 pointer-events-none" />
-              <img src="/Image 3 no-bg.png" alt="Mapheane" draggable={false}
+              <img src={STATIC_IMAGES.heroSecondary} alt="Mapheane" draggable={false}
                 className="w-full h-full object-cover object-[20%_20%]" />
             </motion.div>
           </div>
@@ -154,7 +155,7 @@ export function AboutPage({ onNavigate }: AboutPageProps) {
               transition={{ duration: 1.0, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative aspect-[4/5] overflow-hidden order-2 lg:order-1"
             >
-              <img src="/artportfolio.jpg" alt="Work detail"
+              <img src={STATIC_IMAGES.falls} alt="Work detail"
                 draggable={false} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-charcoal/30 to-transparent pointer-events-none" />
             </motion.div>
