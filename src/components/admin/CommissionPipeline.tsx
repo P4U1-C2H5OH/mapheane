@@ -274,33 +274,28 @@ export function CommissionPipeline() {
   const handleAdd = async () => {
     if (!newForm.client || !newForm.email || !newForm.description) return;
     setSaving(true);
-    try {
-      const { data, error } = await supabase
-        .from('commissions')
-        .insert({
-          client:       newForm.client,
-          email:        newForm.email,
-          medium:       newForm.medium,
-          description:  newForm.description,
-          value_zar:    Number(newForm.value) || 0,
-          deposit_paid: false,
-          stage:        'inquiry',
-          priority:     newForm.priority,
-          due_date:     newForm.dueDate || null,
-          notes:        newForm.notes   || null,
-          progress:     null,
-        })
-        .select()
-        .single();
-      if (error) throw new Error('Failed to add commission.');
+    const { data, error } = await supabase
+      .from('commissions')
+      .insert({
+        client:       newForm.client,
+        email:        newForm.email,
+        medium:       newForm.medium,
+        description:  newForm.description,
+        value_zar:    Number(newForm.value) || 0,
+        deposit_paid: false,
+        stage:        'inquiry',
+        priority:     newForm.priority,
+        due_date:     newForm.dueDate || null,
+        notes:        newForm.notes   || null,
+        progress:     null,
+      })
+      .select()
+      .single();
+    setSaving(false);
+    if (!error && data) {
       setCommissions(prev => [mapRow(data), ...prev]);
       setAdding(false);
       setNewForm({ client: '', email: '', medium: 'Painting', description: '', value: '', priority: 'normal', dueDate: '', notes: '' });
-    } catch (err: unknown) {
-      console.error('Error adding commission:', err);
-      alert(err instanceof Error ? err.message : 'Failed to add commission');
-    } finally {
-      setSaving(false);
     }
   };
 
