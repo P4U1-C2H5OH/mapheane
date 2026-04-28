@@ -31,7 +31,13 @@ export function NewsletterModal({ isOpen, onClose }: NewsletterModalProps) {
         body: JSON.stringify({ email, name, source: 'newsletter_modal', trap }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const text = await res.text();
+        let data: { error?: string } = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
         throw new Error(data.error || 'Signup failed');
       }
       trackInteraction({

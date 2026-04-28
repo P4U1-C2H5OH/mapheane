@@ -18,18 +18,20 @@ export function Footer({ onNavigate }: FooterProps) {
     if (!email || subscribed) return;
     setSubscribing(true);
     try {
-      await fetch('/api/newsletter', {
+      const res = await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, source: 'footer', trap }),
       });
-      trackInteraction({
-        action: 'newsletter_signup',
-        targetType: 'newsletter',
-        targetTitle: 'Studio Letters',
-        source: 'footer',
-        metadata: { email },
-      });
+      if (res.ok) {
+        trackInteraction({
+          action: 'newsletter_signup',
+          targetType: 'newsletter',
+          targetTitle: 'Studio Letters',
+          source: 'footer',
+          metadata: { email },
+        });
+      }
     } catch {
       // Silently succeed — newsletter signup failure shouldn't block the user
     } finally {
