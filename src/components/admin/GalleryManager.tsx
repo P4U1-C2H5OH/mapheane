@@ -6,12 +6,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { eurToZar, formatZar, roundMoney, zarToEur } from '../../lib/pricing';
+import { uploadAdminImage } from '../../lib/cloudinary';
 
 type FormMode = 'list' | 'add' | 'edit';
 type ImageTab = 'upload' | 'url';
-
-const CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const MEDIUMS = ['Painting', 'Drawing', 'Clay Model'] as const;
 
@@ -145,18 +143,10 @@ function ArtworkForm({ initial, onSave, onCancel, isNew }: {
     setUploading(true);
     setUploadErr('');
     try {
-      const urls = await Promise.all(toUpload.map(async (file) => {
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('upload_preset', UPLOAD_PRESET);
-        fd.append('folder', 'mapheane');
-        const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
-        if (!res.ok) throw new Error('Upload failed');
-        return (await res.json()).secure_url as string;
-      }));
+      const urls = await Promise.all(toUpload.map(file => uploadAdminImage(file)));
       update('images', [...form.images, ...urls]);
-    } catch {
-      setUploadErr('Upload failed — check your connection and try again.');
+    } catch (err) {
+      setUploadErr(err instanceof Error ? err.message : 'Upload failed — check your connection and try again.');
     } finally {
       setUploading(false);
     }

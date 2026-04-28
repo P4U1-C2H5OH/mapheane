@@ -1,9 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Upload, X, Image as ImageIcon, Loader } from 'lucide-react';
+import { Upload, X, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const CLOUD_NAME   = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+import { uploadAdminImage } from '../../lib/cloudinary';
 
 interface ImageUploadProps {
   images: string[];
@@ -18,22 +16,6 @@ export function ImageUpload({ images, onChange, maxImages = 5, label = 'Images' 
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadToCloudinary = async (file: File): Promise<string> => {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('upload_preset', UPLOAD_PRESET);
-    form.append('folder', 'mapheane');
-
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: 'POST',
-      body: form,
-    });
-
-    if (!res.ok) throw new Error('Upload failed');
-    const data = await res.json();
-    return data.secure_url as string;
-  };
-
   const handleFileSelect = async (files: FileList | null) => {
     if (!files) return;
     const remainingSlots = maxImages - images.length;
@@ -46,10 +28,10 @@ export function ImageUpload({ images, onChange, maxImages = 5, label = 'Images' 
     setUploadError('');
 
     try {
-      const urls = await Promise.all(filesToProcess.map(uploadToCloudinary));
+      const urls = await Promise.all(filesToProcess.map(file => uploadAdminImage(file)));
       onChange([...images, ...urls]);
-    } catch {
-      setUploadError('Upload failed — please try again.');
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed — please try again.');
     } finally {
       setUploading(false);
     }

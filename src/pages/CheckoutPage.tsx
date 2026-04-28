@@ -21,6 +21,7 @@ type FulfilmentMethod = 'delivery' | 'pickup';
 type DeliveryZone     = 'maseru' | 'lesotho' | 'southafrica' | 'international';
 type PaymentMethod    = 'mpesa' | 'ecocash' | 'wire';
 type CheckoutStep     = 'fulfilment' | 'payment' | 'confirmation';
+type ProofFile        = { name: string; file: File };
 
 interface DeliveryZoneOption {
   id: DeliveryZone;
@@ -279,7 +280,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const [deliveryZone,    setDeliveryZone]    = useState<DeliveryZone>('maseru');
   const [pickupPoint,     setPickupPoint]     = useState<string>('studio');
   const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod | null>(null);
-  const [proofFile,       setProofFile]       = useState<{ name: string; dataUrl: string } | null>(null);
+  const [proofFile,       setProofFile]       = useState<ProofFile | null>(null);
   const [proofError,      setProofError]      = useState('');
   const [copied,          setCopied]          = useState<string | null>(null);
   const [submitting,      setSubmitting]      = useState(false);
@@ -328,14 +329,18 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { setProofError('File must be under 8MB'); return; }
+    if (file.size > 8 * 1024 * 1024) {
+      setProofError('File must be under 8MB');
+      e.target.value = '';
+      return;
+    }
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-      setProofError('Please upload an image or PDF'); return;
+      setProofError('Please upload an image or PDF');
+      e.target.value = '';
+      return;
     }
     setProofError('');
-    const reader = new FileReader();
-    reader.onload = () => setProofFile({ name: file.name, dataUrl: reader.result as string });
-    reader.readAsDataURL(file);
+    setProofFile({ name: file.name, file });
   };
 
   const validateFulfilment = () => {
@@ -366,18 +371,16 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
       // 1. Upload proof to Supabase Storage (skip for wire transfers)
       let proofPath: string | null = null;
       if (paymentMethod !== 'wire' && proofFile) {
-        const ext = proofFile.name.split('.').pop() ?? 'jpg';
+        const ext = proofFile.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? 'jpg';
         const fileName = `${orderRef}-${Date.now()}.${ext}`;
-        const base64 = proofFile.dataUrl.split(',')[1];
-        const binaryStr = atob(base64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-        const mimeType = proofFile.dataUrl.split(':')[1]?.split(';')[0] ?? 'image/jpeg';
-        const blob = new Blob([bytes], { type: mimeType });
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('payment-proofs')
-          .upload(fileName, blob, { cacheControl: '3600', upsert: false });
+          .upload(fileName, proofFile.file, {
+            cacheControl: '3600',
+            contentType: proofFile.file.type || undefined,
+            upsert: false,
+          });
 
         if (uploadError) throw new Error('Proof upload failed: ' + uploadError.message);
         proofPath = uploadData.path;
@@ -949,7 +952,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                                   <ImageIcon className="w-5 h-5 text-sage flex-shrink-0" />
                                   <div>
                                     <p className="text-sm text-charcoal truncate max-w-[200px]">{proofFile.name}</p>
-                                    <p className="text-xs text-sage">Uploaded ✓</p>
+                                    <p className="text-xs text-sage">Selected for secure upload</p>
                                   </div>
                                 </div>
                                 <button
