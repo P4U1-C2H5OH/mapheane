@@ -1,5 +1,6 @@
 const { esc } = require('./_lib/escape');
 const { newsletterLimit, getIp } = require('./_lib/ratelimit');
+const { createAdminClient } = require('./_lib/auth');
 
 const RESEND_API_KEY     = process.env.RESEND_API_KEY;
 const RESEND_AUDIENCE_ID = process.env.RESEND_AUDIENCE_ID;
@@ -28,7 +29,7 @@ async function handler(req, res) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
-  const { email, name, trap } = req.body ?? {};
+  const { email, name, source, trap } = req.body ?? {};
 
   // Honeypot
   if (trap) return res.status(200).json({ ok: true });
@@ -42,10 +43,39 @@ async function handler(req, res) {
   }
 
   const safeName = name ? esc(name) : '';
+  const normalizedEmail = email.trim().toLowerCase();
+  const safeSource = typeof source === 'string' && source.length <= 80 ? source : 'website';
 
   try {
+    const supabase = createAdminClient();
+    const { error: dbError } = await supabase
+      .from('newsletter_subscribers')
+      .upsert({
+        email: normalizedEmail,
+        name: name?.trim() || null,
+        source: safeSource,
+        status: 'subscribed',
+        segments: ['newsletter'],
+        metadata: {
+          user_agent: req.headers['user-agent'] ?? null,
+          ip,
+        },
+        unsubscribed_at: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'email' });
+
+    if (dbError) {
+      console.error('Newsletter subscriber upsert error:', dbError);
+      const missingTable =
+        dbError.code === '42P01' ||
+        /newsletter_subscribers/i.test(dbError.message ?? '');
+      if (!missingTable) {
+        return res.status(500).json({ error: 'Signup failed. Please try again.' });
+      }
+    }
+
     // Add to Resend Audience
-    if (RESEND_AUDIENCE_ID) {
+    if (RESEND_API_KEY && RESEND_AUDIENCE_ID && RESEND_AUDIENCE_ID !== 'placeholder') {
       const audienceRes = await fetch(
         `https://api.resend.com/audiences/${RESEND_AUDIENCE_ID}/contacts`,
         {
@@ -54,7 +84,7 @@ async function handler(req, res) {
             Authorization: `Bearer ${RESEND_API_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ email, first_name: safeName, unsubscribed: false }),
+          body: JSON.stringify({ email: normalizedEmail, first_name: safeName, unsubscribed: false }),
         }
       );
       if (!audienceRes.ok) {
@@ -63,30 +93,35 @@ async function handler(req, res) {
     }
 
     // Email 1: Welcome (Day 0)
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: FROM_ADDRESS,
-        to: email,
-        subject: "You're in — and here's where we begin",
-        html: `
-          <div style="font-family:sans-serif;max-width:600px;color:#2D2A26;line-height:1.7">
-            <p>Dear ${safeName || 'friend'},</p>
-            <p>Welcome to the studio. This is not a catalogue — every note I send is something I would genuinely write to a collector friend.</p>
-            <p>I work from Maseru, in the Kingdom of Lesotho, with resin on canvas, charcoal and graphite on paper, and glazed stoneware. The visual language of where I grew up — litema wall painting, seanamarena blanket patterns, highland clay — is the foundation of everything I make.</p>
-            <p>I have one question for you, and I read every reply: <em>How did you discover the work?</em> Instagram, a gallery, a friend — I am genuinely curious.</p>
-            <p>The studio is at <a href="https://mapheane.art/gallery" style="color:#A0522D">mapheane.art</a> whenever you are ready to look.</p>
-            <p>Warm regards,<br/>Mapheane</p>
-            <hr style="margin:32px 0;border:none;border-top:1px solid #EDE8E0"/>
-            <p style="font-size:12px;color:#9E9890">You subscribed at mapheane.art. To unsubscribe, reply with "unsubscribe".</p>
-          </div>
-        `,
-      }),
-    });
+    if (RESEND_API_KEY) {
+      const welcomeRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: FROM_ADDRESS,
+          to: normalizedEmail,
+          subject: "You're in — and here's where we begin",
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;color:#2D2A26;line-height:1.7">
+              <p>Dear ${safeName || 'friend'},</p>
+              <p>Welcome to the studio. This is not a catalogue — every note I send is something I would genuinely write to a collector friend.</p>
+              <p>I work from Maseru, in the Kingdom of Lesotho, with resin on canvas, charcoal and graphite on paper, and glazed stoneware. The visual language of where I grew up — litema wall painting, seanamarena blanket patterns, highland clay — is the foundation of everything I make.</p>
+              <p>I have one question for you, and I read every reply: <em>How did you discover the work?</em> Instagram, a gallery, a friend — I am genuinely curious.</p>
+              <p>The studio is at <a href="https://mapheane.art/gallery" style="color:#A0522D">mapheane.art</a> whenever you are ready to look.</p>
+              <p>Warm regards,<br/>Mapheane</p>
+              <hr style="margin:32px 0;border:none;border-top:1px solid #EDE8E0"/>
+              <p style="font-size:12px;color:#9E9890">You subscribed at mapheane.art. To unsubscribe, reply with "unsubscribe".</p>
+            </div>
+          `,
+        }),
+      });
+      if (!welcomeRes.ok) {
+        console.error('Resend welcome email error:', await welcomeRes.text());
+      }
+    }
 
     res.status(200).json({ ok: true });
   } catch (err) {

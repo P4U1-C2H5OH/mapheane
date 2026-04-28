@@ -78,16 +78,49 @@ export function WorkshopsManager() {
   });
 
   useEffect(() => {
-    supabase
-      .from('workshops')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        const rows = (data ?? []).map(mapRow);
-        setWorkshops(rows);
-        if (rows.length > 0) setSelected(rows[0]);
-        setLoading(false);
+    async function load() {
+      const [workshopRes, bookingRes] = await Promise.all([
+        supabase
+          .from('workshops')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('workshop_bookings')
+          .select('*')
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: false }),
+      ]);
+
+      const bookingRows = bookingRes.data ?? [];
+      const rows = (workshopRes.data ?? []).map(row => {
+        const workshop = mapRow(row);
+        const liveBookings = bookingRows
+          .filter((booking: any) => booking.workshop_id === workshop.id)
+          .map((booking: any): Booking => ({
+            id: booking.id,
+            name: booking.name ?? '',
+            email: booking.email ?? '',
+            country: booking.phone ?? '',
+            tickets: 1,
+            status: (booking.status ?? 'pending') as Booking['status'],
+            notes: booking.message ?? undefined,
+          }));
+        return {
+          ...workshop,
+          bookings: liveBookings.filter(b => b.status !== 'waitlist'),
+          waitlist: liveBookings.filter(b => b.status === 'waitlist'),
+        };
       });
+
+      setWorkshops(rows);
+      if (rows.length > 0) setSelected(rows[0]);
+      setLoading(false);
+    }
+
+    load().catch(error => {
+      console.error('Failed to load workshops:', error);
+      setLoading(false);
+    });
   }, []);
 
   const filtered = workshops.filter(w =>

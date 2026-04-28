@@ -2,8 +2,8 @@ const { Resend } = require('resend');
 const { createClient } = require('@supabase/supabase-js');
 const { esc } = require('./_lib/escape');
 const { contactLimit, getIp } = require('./_lib/ratelimit');
+const { loadEmailSettings } = require('./_lib/settings');
 
-const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
 
@@ -94,6 +94,7 @@ async function handler(req, res) {
       process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY
     );
+    const emailSettings = await loadEmailSettings(supabase);
 
     const { error: dbError } = await supabase.from('messages').insert({
       name,
@@ -115,10 +116,41 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to save message. Please try emailing hello@mapheane.art directly.' });
     }
 
+    if (type === 'Commission') {
+      const normalizedMedium =
+        typeof medium === 'string' && /drawing/i.test(medium) ? 'Drawing' :
+        typeof medium === 'string' && /(clay|sculpt)/i.test(medium) ? 'Sculpture' :
+        'Painting';
+
+      const { error: commissionError } = await supabase.from('commissions').insert({
+        client: name,
+        client_name: name,
+        email,
+        client_email: email,
+        medium: normalizedMedium,
+        description: message,
+        value_zar: 0,
+        price_eur: 0,
+        deposit_paid: false,
+        stage: 'inquiry',
+        priority: 'normal',
+        notes: [
+          budget ? `Budget: ${budget}` : null,
+          medium ? `Requested medium: ${medium}` : null,
+          'Created from public commission inquiry.',
+        ].filter(Boolean).join('\n'),
+      });
+
+      if (commissionError) {
+        console.error('Supabase commission insert error:', commissionError);
+        return res.status(500).json({ error: 'Failed to create commission inquiry. Please try emailing hello@mapheane.art directly.' });
+      }
+    }
+
     const [r1, r2] = await Promise.all([
       resend.emails.send({
         from: FROM_ADDRESS,
-        to: STUDIO_EMAIL,
+        to: emailSettings.studioEmail,
         replyTo: email,
         subject,
         html: notificationHtml,

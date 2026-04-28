@@ -69,6 +69,8 @@ export function OrdersManager() {
   const [selected, setSelected]   = useState<Order | null>(null);
   const [filterStatus, setFilter] = useState<OrderStatus | 'all'>('all');
   const [tracking, setTracking]   = useState('');
+  const [proofLoading, setProofLoading] = useState(false);
+  const [proofError, setProofError] = useState('');
 
   // Load orders from Supabase on mount
   useEffect(() => {
@@ -138,6 +140,27 @@ export function OrdersManager() {
     ));
     setSelected(prev => prev?.id === orderId ? { ...prev, status: next } : prev);
     setTracking('');
+  };
+
+  const viewProof = async (order: Order) => {
+    if (!order.proofUrl) {
+      setProofError('No proof file is attached to this order.');
+      return;
+    }
+    setProofLoading(true);
+    setProofError('');
+    try {
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .createSignedUrl(order.proofUrl, 60 * 5);
+      if (error || !data?.signedUrl) throw error ?? new Error('Unable to create proof link.');
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Proof view error:', err);
+      setProofError('Unable to open proof. Check storage permissions and try again.');
+    } finally {
+      setProofLoading(false);
+    }
   };
 
   if (loading) return (
@@ -314,9 +337,16 @@ export function OrdersManager() {
                 {selected.status === 'pending' && (
                   <div className="border-2 border-dashed border-charcoal/15 p-4 text-center">
                     <Eye className="w-5 h-5 text-muted mx-auto mb-2" />
-                    <p className="text-sm text-muted">Payment proof uploaded</p>
-                    <button className="mt-2 text-xs font-sans uppercase tracking-widest text-terracotta hover:text-terracottaDark transition-colors">
-                      View proof →
+                    <p className="text-sm text-muted">
+                      {selected.proofUrl ? 'Payment proof uploaded' : 'No payment proof attached'}
+                    </p>
+                    {proofError && <p className="text-xs text-red-400 mt-2">{proofError}</p>}
+                    <button
+                      onClick={() => viewProof(selected)}
+                      disabled={proofLoading || !selected.proofUrl}
+                      className="mt-2 text-xs font-sans uppercase tracking-widest text-terracotta hover:text-terracottaDark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {proofLoading ? 'Opening proof...' : 'View proof →'}
                     </button>
                   </div>
                 )}

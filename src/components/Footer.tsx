@@ -21,7 +21,7 @@ export function Footer({ onNavigate }: FooterProps) {
       await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, trap }),
+        body: JSON.stringify({ email, source: 'footer', trap }),
       });
       trackInteraction({
         action: 'newsletter_signup',

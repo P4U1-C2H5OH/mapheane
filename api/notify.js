@@ -2,8 +2,8 @@ const { Resend } = require('resend');
 const { esc } = require('./_lib/escape');
 const { requireAdmin } = require('./_lib/auth');
 const { formatZar } = require('./_lib/pricing');
+const { loadEmailSettings } = require('./_lib/settings');
 
-const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
 
@@ -107,12 +107,13 @@ async function handler(req, res) {
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
+  const emailSettings = await loadEmailSettings(admin.supabase);
 
   try {
     await resend.emails.send({
       from:    FROM_ADDRESS,
       to:      customerEmail,
-      replyTo: STUDIO_EMAIL,
+      replyTo: emailSettings.replyTo,
       subject: SUBJECTS[status],
       html:    buildHtml(status, { customerName, ref, items, total, tracking }),
     });

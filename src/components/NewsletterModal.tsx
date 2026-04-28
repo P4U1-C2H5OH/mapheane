@@ -28,7 +28,7 @@ export function NewsletterModal({ isOpen, onClose }: NewsletterModalProps) {
       const res = await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, trap }),
+        body: JSON.stringify({ email, name, source: 'newsletter_modal', trap }),
       });
       if (!res.ok) {
         const data = await res.json();

@@ -1,7 +1,7 @@
 import { useCurrency } from '../context/CurrencyContext';
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PickupMap, PickupPoint } from '../components/PickupMap';
+import { PickupMap } from '../components/PickupMap';
 import {
   ArrowLeft, ArrowRight, Check, MapPin, Truck, Package,
   Upload, X, Image as ImageIcon, Copy, CheckCircle, AlertCircle,
@@ -22,8 +22,34 @@ type DeliveryZone     = 'maseru' | 'lesotho' | 'southafrica' | 'international';
 type PaymentMethod    = 'mpesa' | 'ecocash' | 'wire';
 type CheckoutStep     = 'fulfilment' | 'payment' | 'confirmation';
 
+interface DeliveryZoneOption {
+  id: DeliveryZone;
+  label: string;
+  price: number;
+  eta: string;
+}
+
+interface PaymentOption {
+  id: PaymentMethod;
+  name: string;
+  description: string;
+  color: string;
+  isWire: boolean;
+  details: {
+    accountName: string;
+    number?: string;
+    instructions?: string[];
+    bankName?: string;
+    accountNumber?: string;
+    swift?: string;
+    branch?: string;
+  };
+}
+
+type PickupPoint = import('../components/PickupMap').PickupPoint;
+
 // ─── Pickup points ───────────────────────────────────────────
-const PICKUP_POINTS: import('../components/PickupMap').PickupPoint[] = [
+const DEFAULT_PICKUP_POINTS: PickupPoint[] = [
   { id: 'studio',       name: "Mapheane's Studio",          address: 'Studio 4, Kingsway Arts Quarter, Maseru CBD',            city: 'Maseru',        hours: 'Mon–Fri 9am–5pm, Sat 9am–1pm',  note: 'Collection by appointment — Mapheane will confirm your slot.', primary: true,  lat: -29.3167, lng: 27.4833 },
   { id: 'pioneer-mall', name: 'Pioneer Mall Collection',    address: 'Pioneer Mall, Kingsway Road, Level 1 — Customer Services',city: 'Maseru',        hours: 'Mon–Sat 8am–7pm, Sun 9am–4pm',  note: 'Parcels held for 5 working days.',                             primary: false, lat: -29.3100, lng: 27.4760 },
   { id: 'maseru-west',  name: 'Maseru West Hub',            address: 'Maseru West Shopping Centre, Main Counter',              city: 'Maseru West',   hours: 'Mon–Sat 8am–6pm',               note: null,                                                           primary: false, lat: -29.3250, lng: 27.4600 },
@@ -33,7 +59,7 @@ const PICKUP_POINTS: import('../components/PickupMap').PickupPoint[] = [
 ];
 
 // ─── Delivery zones ──────────────────────────────────────────
-const DELIVERY_ZONES: { id: DeliveryZone; label: string; price: number; eta: string }[] = [
+const DEFAULT_DELIVERY_ZONES: DeliveryZoneOption[] = [
   { id: 'maseru',        label: 'Maseru (city delivery)',           price: 150,  eta: '1–2 working days'   },
   { id: 'lesotho',       label: 'Other Lesotho districts',          price: 280,  eta: '3–5 working days'   },
   { id: 'southafrica',   label: 'South Africa',                     price: 450,  eta: '3–5 working days'   },
@@ -41,7 +67,7 @@ const DELIVERY_ZONES: { id: DeliveryZone; label: string; price: number; eta: str
 ];
 
 // ─── Payment methods ─────────────────────────────────────────
-const PAYMENT_METHODS = [
+const DEFAULT_PAYMENT_METHODS: PaymentOption[] = [
   {
     id: 'mpesa' as PaymentMethod,
     name: 'M-Pesa',
@@ -90,7 +116,6 @@ const PAYMENT_METHODS = [
     isWire: true,
     details: {
       accountName: 'Mapheane',
-      // Placeholder — update in Admin Settings once business account is ready
       bankName: 'Standard Lesotho Bank',
       accountNumber: '000-000-000-000',
       swift: 'STANLSLM',
@@ -98,6 +123,85 @@ const PAYMENT_METHODS = [
     },
   },
 ];
+
+function numberFromSetting(value: unknown, fallback: number) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+function zonesFromSettings(settings: any): DeliveryZoneOption[] {
+  const shipping = settings?.shipping ?? {};
+  return DEFAULT_DELIVERY_ZONES.map(zone => {
+    const key = zone.id === 'southafrica' ? 'southAfrica' : zone.id;
+    return { ...zone, price: numberFromSetting(shipping[key], zone.price) };
+  });
+}
+
+function paymentMethodsFromSettings(settings: any): PaymentOption[] {
+  const payment = settings?.payment ?? {};
+  return DEFAULT_PAYMENT_METHODS.map(method => {
+    if (method.id === 'mpesa') {
+      return {
+        ...method,
+        details: {
+          ...method.details,
+          accountName: payment.mpesaName || method.details.accountName,
+          number: payment.mpesaNumber || method.details.number,
+        },
+      };
+    }
+    if (method.id === 'ecocash') {
+      return {
+        ...method,
+        details: {
+          ...method.details,
+          accountName: payment.ecocashName || method.details.accountName,
+          number: payment.ecocashNumber || method.details.number,
+        },
+      };
+    }
+    return {
+      ...method,
+      details: {
+        ...method.details,
+        accountName: payment.wireAccountName || method.details.accountName,
+        bankName: payment.wireBankName || method.details.bankName,
+        accountNumber: payment.wireAccountNumber || method.details.accountNumber,
+        swift: payment.wireSwift || method.details.swift,
+        branch: payment.wireBranch || method.details.branch,
+      },
+    };
+  });
+}
+
+function pickupPointsFromSettings(settings: any): PickupPoint[] {
+  const points = settings?.shipping?.pickupPoints;
+  if (!Array.isArray(points)) return DEFAULT_PICKUP_POINTS;
+  const normalized = points
+    .map((point: any, index: number): PickupPoint | null => {
+      const lat = Number(point?.lat);
+      const lng = Number(point?.lng);
+      const id = String(point?.id || `pickup-${index + 1}`).trim();
+      const name = String(point?.name || '').trim();
+      const address = String(point?.address || '').trim();
+      const city = String(point?.city || '').trim();
+      const hours = String(point?.hours || '').trim();
+      if (!id || !name || !address || !city || !hours || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return {
+        id,
+        name,
+        address,
+        city,
+        hours,
+        note: point?.note ?? null,
+        primary: Boolean(point?.primary),
+        lat,
+        lng,
+      };
+    })
+    .filter((point): point is PickupPoint => Boolean(point));
+  return normalized.length ? normalized : DEFAULT_PICKUP_POINTS;
+}
 
 // ─── Field component ─────────────────────────────────────────
 function Field({
@@ -181,19 +285,38 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const [submitting,      setSubmitting]      = useState(false);
   const [orderRef]        = useState(() => 'MAP-' + Math.random().toString(36).slice(2, 8).toUpperCase());
   const fileInputRef      = useRef<HTMLInputElement>(null);
+  const [deliveryZones,   setDeliveryZones]   = useState<DeliveryZoneOption[]>(DEFAULT_DELIVERY_ZONES);
+  const [paymentMethods,  setPaymentMethods]  = useState<PaymentOption[]>(DEFAULT_PAYMENT_METHODS);
+  const [pickupPoints,    setPickupPoints]    = useState<PickupPoint[]>(DEFAULT_PICKUP_POINTS);
 
   const [contact, setContact] = useState({ name: '', email: '', phone: '' });
   const [address, setAddress] = useState({ line1: '', city: '', district: '', country: '' });
   const [errors,  setErrors]  = useState<Record<string, string>>({});
 
   // Derived
-  const zone        = DELIVERY_ZONES.find(z => z.id === deliveryZone)!;
+  const zone        = deliveryZones.find(z => z.id === deliveryZone) ?? deliveryZones[0] ?? DEFAULT_DELIVERY_ZONES[0];
   const shippingCost = fulfilment === 'pickup' ? 0 : zone.price;
   const subtotalEUR = getCartTotal(); // cart prices are in EUR
   const shippingEUR = zarToEur(shippingCost); // shipping zones defined in ZAR
   const totalEUR    = subtotalEUR + shippingEUR;
-  const selectedPickup = PICKUP_POINTS.find(p => p.id === pickupPoint)!;
-  const selectedPayment = PAYMENT_METHODS.find(p => p.id === paymentMethod);
+  const selectedPickup = pickupPoints.find(p => p.id === pickupPoint) ?? pickupPoints[0] ?? DEFAULT_PICKUP_POINTS[0];
+  const selectedPayment = paymentMethods.find(p => p.id === paymentMethod);
+
+  React.useEffect(() => {
+    let active = true;
+    fetch('/api/settings')
+      .then(res => res.ok ? res.json() : null)
+      .then(settings => {
+        if (!active || !settings) return;
+        const nextPickupPoints = pickupPointsFromSettings(settings);
+        setDeliveryZones(zonesFromSettings(settings));
+        setPaymentMethods(paymentMethodsFromSettings(settings));
+        setPickupPoints(nextPickupPoints);
+        setPickupPoint(current => nextPickupPoints.some(point => point.id === current) ? current : nextPickupPoints[0]?.id ?? 'studio');
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // ── Handlers ───────────────────────────────────────────────
   const copyToClipboard = async (text: string, key: string) => {
@@ -534,7 +657,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                             <div>
                               <p className="text-label uppercase tracking-widest text-muted mb-3">Delivery Region</p>
                               <div className="space-y-2">
-                                {DELIVERY_ZONES.map(z => (
+                                {deliveryZones.map(z => (
                                   <button
                                     key={z.id}
                                     type="button"
@@ -594,7 +717,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                           <div className="pt-2">
                             <p className="text-label uppercase tracking-widest text-muted mb-4">Select a Pickup Point</p>
                             <PickupMap
-                              points={PICKUP_POINTS}
+                              points={pickupPoints}
                               selectedId={pickupPoint}
                               onSelect={setPickupPoint}
                             />
@@ -629,7 +752,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                     <p className="font-serif italic text-xl text-charcoal mb-6">Choose Payment Method</p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {PAYMENT_METHODS.map(method => (
+                      {paymentMethods.map(method => (
                         <button
                           key={method.id}
                           type="button"

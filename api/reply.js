@@ -2,8 +2,8 @@ const { Resend }  = require('resend');
 const { esc }     = require('./_lib/escape');
 const { contactLimit, getIp } = require('./_lib/ratelimit');
 const { requireAdmin } = require('./_lib/auth');
+const { loadEmailSettings } = require('./_lib/settings');
 
-const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
 
@@ -39,11 +39,12 @@ async function handler(req, res) {
   if (!to.includes('@'))     return res.status(400).json({ error: 'Invalid recipient email' });
 
   const resend = new Resend(process.env.RESEND_API_KEY);
+  const emailSettings = await loadEmailSettings(admin.supabase);
 
   await resend.emails.send({
     from:    FROM_ADDRESS,
     to:      to,
-    replyTo: STUDIO_EMAIL,
+    replyTo: emailSettings.replyTo,
     subject: subject ?? `From Mapheane Studio`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;color:#2D2A26;line-height:1.75">

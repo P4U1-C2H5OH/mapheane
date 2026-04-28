@@ -197,24 +197,33 @@ export function MarketingHub() {
   });
   const [sent, setSent]           = useState(false);
   const [counts, setCounts]       = useState<Record<string, number>>({
-    vip: 0, collectors: 0, workshops: 0, wishlist: 0, newsletter: 0, press: 0,
+    vip: 0, collectors: 0, workshops: 0, wishlist: 0, newsletter: 0, subscribers: 0, press: 0,
   });
 
   useEffect(() => {
     async function load() {
-      const [vip, collectors, workshops, press, campaignRows] = await Promise.all([
+      const [vip, collectors, workshops, subscribers, press, campaignRows] = await Promise.all([
         supabase.from('collectors').select('*', { count: 'exact', head: true }).gte('ltv_zar', 18000),
         supabase.from('collectors').select('*', { count: 'exact', head: true }).gt('ltv_zar', 0),
         supabase.from('workshop_bookings').select('*', { count: 'exact', head: true }).neq('status', 'cancelled'),
+        supabase.from('newsletter_subscribers').select('*', { count: 'exact', head: true }).eq('status', 'subscribed'),
         supabase.from('messages').select('*', { count: 'exact', head: true }).eq('type', 'Press'),
         supabase.from('campaigns').select('*').order('created_at', { ascending: false }),
       ]);
       setCounts(prev => ({
         ...prev,
-        vip:        vip.count        ?? prev.vip,
-        collectors: collectors.count ?? prev.collectors,
-        workshops:  workshops.count  ?? prev.workshops,
-        press:      press.count      ?? prev.press,
+        ...(() => {
+          const collectorCount = collectors.count ?? prev.collectors;
+          const subscriberCount = subscribers.count ?? prev.subscribers;
+          return {
+            vip:        vip.count        ?? prev.vip,
+            collectors: collectorCount,
+            workshops:  workshops.count  ?? prev.workshops,
+            newsletter: Math.max(subscriberCount - collectorCount, 0),
+            subscribers: subscriberCount,
+            press:      press.count      ?? prev.press,
+          };
+        })(),
       }));
       if (campaignRows.data?.length) {
         setCampaigns(campaignRows.data.map(r => ({
@@ -236,7 +245,7 @@ export function MarketingHub() {
 
   const SEGMENTS = SEGMENT_TEMPLATES.map(s => ({ ...s, count: counts[s.key] ?? 0 }));
 
-  const totalSubs = SEGMENTS.reduce((s, seg) => s + seg.count, 0);
+  const totalSubs = counts.subscribers || SEGMENTS.reduce((s, seg) => s + seg.count, 0);
   const sentCamp  = campaigns.filter(c => c.openRate);
   const avgOpen   = sentCamp.length
     ? Math.round(sentCamp.reduce((s, c) => s + (c.openRate || 0), 0) / sentCamp.length)

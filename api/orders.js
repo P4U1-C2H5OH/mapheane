@@ -3,16 +3,38 @@ const { esc } = require('./_lib/escape');
 const { ordersLimit, getIp } = require('./_lib/ratelimit');
 const { createAdminClient } = require('./_lib/auth');
 const { eurToZar, zarToEur, roundMoney, formatZar } = require('./_lib/pricing');
+const { loadEmailSettings } = require('./_lib/settings');
 
-const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
-const DELIVERY_ZONES = {
+const DEFAULT_DELIVERY_ZONES = {
   maseru: 150,
   lesotho: 280,
   southafrica: 450,
   international: 950,
 };
+
+function numberFromSetting(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+async function loadDeliveryZones(supabase) {
+  const { data, error } = await supabase
+    .from('studio_settings')
+    .select('value')
+    .eq('key', 'shipping')
+    .maybeSingle();
+
+  if (error || !data?.value) return DEFAULT_DELIVERY_ZONES;
+  const shipping = data.value;
+  return {
+    maseru: numberFromSetting(shipping.maseru, DEFAULT_DELIVERY_ZONES.maseru),
+    lesotho: numberFromSetting(shipping.lesotho, DEFAULT_DELIVERY_ZONES.lesotho),
+    southafrica: numberFromSetting(shipping.southAfrica ?? shipping.southafrica, DEFAULT_DELIVERY_ZONES.southafrica),
+    international: numberFromSetting(shipping.international, DEFAULT_DELIVERY_ZONES.international),
+  };
+}
 
 function asQuantity(value) {
   const n = Number(value);
@@ -161,6 +183,13 @@ async function handler(req, res) {
 
   const supabase = createAdminClient();
   const resend = new Resend(process.env.RESEND_API_KEY);
+  let emailSettings;
+  try {
+    emailSettings = await loadEmailSettings(supabase);
+  } catch (err) {
+    console.error('Email settings load error:', err);
+    emailSettings = { studioEmail: 'hello@mapheane.art', orderSubject: 'New order - [REF]' };
+  }
 
   let normalizedItems;
   let serverShippingZar;
@@ -168,7 +197,8 @@ async function handler(req, res) {
   try {
     normalizedItems = await normalizeCartItems(supabase, cartItems);
     const subtotalZar = roundMoney(normalizedItems.reduce((sum, item) => sum + item.priceZar * item.quantity, 0));
-    serverShippingZar = fulfilment === 'pickup' ? 0 : DELIVERY_ZONES[deliveryZone] ?? null;
+    const deliveryZones = await loadDeliveryZones(supabase);
+    serverShippingZar = fulfilment === 'pickup' ? 0 : deliveryZones[deliveryZone] ?? null;
     if (serverShippingZar == null) return res.status(400).json({ error: 'Invalid delivery zone' });
     serverTotalZar = roundMoney(subtotalZar + serverShippingZar);
   } catch (err) {
@@ -222,9 +252,9 @@ async function handler(req, res) {
       // Studio notification
       resend.emails.send({
         from: FROM_ADDRESS,
-        to: STUDIO_EMAIL,
+        to: emailSettings.studioEmail,
         replyTo: contact.email,
-        subject: `New order: ${esc(ref)} — ${esc(paymentMethod.toUpperCase())} — ${formatZar(serverTotalZar)}`,
+        subject: (emailSettings.orderSubject || 'New order - [REF]').replace('[REF]', esc(ref)),
         html: `
           <div style="font-family:sans-serif;max-width:600px;color:#2D2A26">
             <h2 style="font-size:18px">New order: ${esc(ref)}</h2>

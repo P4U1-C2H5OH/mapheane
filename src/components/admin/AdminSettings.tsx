@@ -8,6 +8,24 @@ import {
 
 interface Section { id: string; label: string; icon: React.ComponentType<{className?: string}>; }
 
+interface PickupPointSetting {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  hours: string;
+  note: string | null;
+  primary: boolean;
+  lat: number;
+  lng: number;
+}
+
+const DEFAULT_PICKUP_POINTS: PickupPointSetting[] = [
+  { id: 'studio', name: "Mapheane's Studio", address: 'Studio 4, Kingsway Arts Quarter, Maseru CBD', city: 'Maseru', hours: 'Mon-Fri 9am-5pm, Sat 9am-1pm', note: 'Collection by appointment - Mapheane will confirm your slot.', primary: true, lat: -29.3167, lng: 27.4833 },
+  { id: 'pioneer-mall', name: 'Pioneer Mall Collection', address: 'Pioneer Mall, Kingsway Road, Level 1 - Customer Services', city: 'Maseru', hours: 'Mon-Sat 8am-7pm, Sun 9am-4pm', note: 'Parcels held for 5 working days.', primary: false, lat: -29.31, lng: 27.476 },
+  { id: 'maseru-west', name: 'Maseru West Hub', address: 'Maseru West Shopping Centre, Main Counter', city: 'Maseru West', hours: 'Mon-Sat 8am-6pm', note: null, primary: false, lat: -29.325, lng: 27.46 },
+];
+
 const SECTIONS: Section[] = [
   { id: 'studio',    label: 'Studio Details',       icon: MapPin      },
   { id: 'payment',   label: 'Payment Numbers',       icon: CreditCard  },
@@ -43,6 +61,47 @@ function Field({ label, value, onChange, type = 'text', placeholder, hint, prefi
       {hint && <p className="text-xs text-muted/60 mt-1">{hint}</p>}
     </div>
   );
+}
+
+function pickupPointsToText(points: PickupPointSetting[]) {
+  return points
+    .map(point => [
+      point.id,
+      point.name,
+      point.address,
+      point.city,
+      point.hours,
+      point.lat,
+      point.lng,
+      point.primary ? 'primary' : '',
+      point.note ?? '',
+    ].join(' | '))
+    .join('\n');
+}
+
+function pickupPointsFromText(value: string): PickupPointSetting[] {
+  const points = value
+    .split('\n')
+    .map((line, index): PickupPointSetting | null => {
+      const [idRaw, nameRaw, addressRaw, cityRaw, hoursRaw, latRaw, lngRaw, primaryRaw, noteRaw] = line.split('|').map(part => part?.trim() ?? '');
+      const id = idRaw || `pickup-${index + 1}`;
+      const lat = Number(latRaw);
+      const lng = Number(lngRaw);
+      if (!nameRaw || !addressRaw || !cityRaw || !hoursRaw || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return {
+        id,
+        name: nameRaw,
+        address: addressRaw,
+        city: cityRaw,
+        hours: hoursRaw,
+        lat,
+        lng,
+        primary: primaryRaw.toLowerCase() === 'primary',
+        note: noteRaw || null,
+      };
+    })
+    .filter((point): point is PickupPointSetting => Boolean(point));
+  return points.length ? points : DEFAULT_PICKUP_POINTS;
 }
 
 function Accordion({ section, isOpen, onToggle, children }: {
@@ -111,7 +170,9 @@ export function AdminSettings() {
     lesotho: '280',
     southAfrica: '450',
     international: '950',
+    pickupPoints: DEFAULT_PICKUP_POINTS,
   });
+  const [pickupPointText, setPickupPointText] = useState(pickupPointsToText(DEFAULT_PICKUP_POINTS));
 
   const [commission, setCommission] = useState({
     slotsTotal: '4',
@@ -136,7 +197,10 @@ export function AdminSettings() {
       const map: Record<string, any> = Object.fromEntries(data.map(r => [r.key, r.value]));
       if (map.studio)     setStudio(s     => ({ ...s,     ...map.studio     }));
       if (map.payment)    setPayment(p    => ({ ...p,     ...map.payment    }));
-      if (map.shipping)   setShipping(s   => ({ ...s,     ...map.shipping   }));
+      if (map.shipping) {
+        setShipping(s => ({ ...s, ...map.shipping, pickupPoints: Array.isArray(map.shipping.pickupPoints) ? map.shipping.pickupPoints : s.pickupPoints }));
+        if (Array.isArray(map.shipping.pickupPoints)) setPickupPointText(pickupPointsToText(map.shipping.pickupPoints));
+      }
       if (map.commission) setCommission(c => ({ ...c, ...map.commission, status: (map.commission.status ?? c.status) as 'open' | 'waitlist' | 'closed' }));
       if (map.email)      setEmail(e      => ({ ...e,     ...map.email      }));
     });
@@ -144,7 +208,8 @@ export function AdminSettings() {
 
   const handleSave = async (section: string) => {
     setSaveError(null);
-    const valueMap: Record<string, any> = { studio, payment, shipping, commission, email };
+    const normalizedShipping = { ...shipping, pickupPoints: pickupPointsFromText(pickupPointText) };
+    const valueMap: Record<string, any> = { studio, payment, shipping: normalizedShipping, commission, email };
     const { error } = await supabase
       .from('studio_settings')
       .upsert({ key: section, value: valueMap[section] }, { onConflict: 'key' });
@@ -230,6 +295,16 @@ export function AdminSettings() {
             <Field label="International (DHL)"  value={shipping.international} onChange={v => setShipping(s => ({...s, international: v}))} type="number" prefix="R" placeholder="950" />
           </div>
           <p className="text-xs text-muted">All rates in ZAR. Displayed in customer's chosen currency on checkout.</p>
+          <div>
+            <label className="text-label uppercase tracking-widest text-muted block mb-1.5">Pickup points</label>
+            <textarea
+              value={pickupPointText}
+              onChange={e => setPickupPointText(e.target.value)}
+              rows={5}
+              className="w-full bg-transparent border border-charcoal/12 px-3 py-2.5 text-xs text-charcoal focus:outline-none focus:border-terracotta/50 transition-colors font-mono"
+            />
+            <p className="text-xs text-muted/60 mt-1">One per line: id | name | address | city | hours | lat | lng | primary | note</p>
+          </div>
           <div className="pt-2 flex justify-end"><SaveBtn section="shipping" /></div>
         </Accordion>
 

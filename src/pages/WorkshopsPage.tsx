@@ -12,6 +12,8 @@ interface WorkshopsPageProps {
   onNavigate: (page: any) => void;
 }
 
+type BookingTarget = Pick<DbWorkshop, 'id' | 'title'> | { title: string };
+
 const ACCENT_CYCLE = ['terracotta', 'charcoal', 'clay', 'sage'] as const;
 
 const RETREATS = [
@@ -176,8 +178,8 @@ function WorkshopCard({ w, accentIdx, onBook }: WorkshopCardProps) {
 
 export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
   const { workshops } = useWorkshops();
-  const [bookingWorkshop, setBookingWorkshop] = useState<string | null>(null);
-  const [bookForm, setBookForm] = useState({ name: '', email: '', message: '', trap: '' });
+  const [bookingWorkshop, setBookingWorkshop] = useState<BookingTarget | null>(null);
+  const [bookForm, setBookForm] = useState({ name: '', email: '', phone: '', message: '', trap: '' });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -190,23 +192,33 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
     e.preventDefault();
     setSending(true);
     try {
-      const res = await fetch('/api/contact', {
+      const hasWorkshopRecord = Boolean(bookingWorkshop && 'id' in bookingWorkshop);
+      const res = await fetch(hasWorkshopRecord ? '/api/workshop-bookings' : '/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: bookForm.name,
-          email: bookForm.email,
-          type: 'Workshop',
-          workshop: bookingWorkshop,
-          message: bookForm.message || `Booking inquiry for: ${bookingWorkshop}`,
-          trap: bookForm.trap,
-        }),
+        body: JSON.stringify(hasWorkshopRecord
+          ? {
+              workshopId: (bookingWorkshop as DbWorkshop).id,
+              name: bookForm.name,
+              email: bookForm.email,
+              phone: bookForm.phone,
+              message: bookForm.message || `Booking inquiry for: ${bookingWorkshop?.title}`,
+              trap: bookForm.trap,
+            }
+          : {
+              name: bookForm.name,
+              email: bookForm.email,
+              phone: bookForm.phone,
+              type: 'Workshop',
+              workshop: bookingWorkshop?.title,
+              message: bookForm.message || `Booking inquiry for: ${bookingWorkshop?.title}`,
+              trap: bookForm.trap,
+            }),
       });
       if (!res.ok) throw new Error('Send failed');
       setSubmitted(true);
     } catch {
-      // Still show success to user — fallback noted
-      setSubmitted(true);
+      alert('Unable to submit the booking right now. Please email hello@mapheane.art directly.');
     } finally {
       setSending(false);
     }
@@ -320,7 +332,7 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {activeWorkshops.map((w, i) => (
-                <WorkshopCard key={w.id} w={w} accentIdx={i} onBook={() => setBookingWorkshop(w.title)} />
+                <WorkshopCard key={w.id} w={w} accentIdx={i} onBook={() => setBookingWorkshop(w)} />
               ))}
             </div>
           )}
@@ -406,7 +418,7 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
 
                   <div className="flex gap-3 mt-7">
                     <button
-                      onClick={() => setBookingWorkshop(retreat.title)}
+                      onClick={() => setBookingWorkshop({ title: retreat.title })}
                       className="flex items-center gap-2.5 bg-terracotta text-white px-6 py-3 text-xs font-sans uppercase tracking-[0.2em] hover:bg-terracottaDark transition-colors duration-400 shadow-button"
                     >
                       Express Interest <ArrowRight className="w-3.5 h-3.5" />
@@ -465,7 +477,7 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
             Private workshops for families, corporate team events, birthday experiences, and group bookings from 4 to 20 participants. Held at Mapheane's studio or your venue. Pricing on request.
           </p>
           <button
-            onClick={() => setBookingWorkshop('Private / Corporate Workshop')}
+            onClick={() => setBookingWorkshop({ title: 'Private / Corporate Workshop' })}
             className="inline-flex items-center gap-3 bg-terracotta text-white px-8 py-4 text-xs font-sans uppercase tracking-[0.25em] hover:bg-terracottaDark transition-colors duration-400 shadow-button"
           >
             Enquire for Groups
@@ -481,7 +493,7 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[70] bg-ink/55 backdrop-blur-sm"
-              onClick={() => { setBookingWorkshop(null); setSubmitted(false); setBookForm({ name: '', email: '', message: '', trap: '' }); }}
+              onClick={() => { setBookingWorkshop(null); setSubmitted(false); setBookForm({ name: '', email: '', phone: '', message: '', trap: '' }); }}
             />
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.97 }}
@@ -502,8 +514,8 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
                     <p className="text-muted text-sm leading-relaxed mb-6">
                       Mapheane will confirm availability and payment details within 48 hours.
                     </p>
-                    <button
-                      onClick={() => { setBookingWorkshop(null); setSubmitted(false); }}
+                      <button
+                        onClick={() => { setBookingWorkshop(null); setSubmitted(false); setBookForm({ name: '', email: '', phone: '', message: '', trap: '' }); }}
                       className="text-xs font-sans uppercase tracking-widest text-muted hover:text-charcoal transition-colors"
                     >
                       Close
@@ -513,8 +525,8 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
                   <>
                     <div className="flex items-start justify-between mb-6">
                       <div>
-                        <span className="text-label uppercase tracking-[0.25em] text-sage block mb-2">Workshop Inquiry</span>
-                        <h3 className="font-serif text-2xl italic text-charcoal">{bookingWorkshop}</h3>
+                          <span className="text-label uppercase tracking-[0.25em] text-sage block mb-2">Workshop Inquiry</span>
+                          <h3 className="font-serif text-2xl italic text-charcoal">{bookingWorkshop.title}</h3>
                       </div>
                       <button onClick={() => setBookingWorkshop(null)}
                         className="text-muted hover:text-charcoal hover:rotate-90 transition-all duration-300 mt-1">
@@ -527,8 +539,9 @@ export function WorkshopsPage({ onNavigate }: WorkshopsPageProps) {
                       {/* Honeypot */}
                       <input name="trap" type="text" aria-hidden="true" tabIndex={-1} autoComplete="off" style={{ display: 'none' }} />
                       {[
-                        { id: 'name',  label: 'Your Name',  type: 'text',  ph: 'Full name'        },
-                        { id: 'email', label: 'Email',      type: 'email', ph: 'your@email.com'   },
+                          { id: 'name',  label: 'Your Name',  type: 'text',  ph: 'Full name'        },
+                          { id: 'email', label: 'Email',      type: 'email', ph: 'your@email.com'   },
+                          { id: 'phone', label: 'Phone',      type: 'tel',   ph: '+266 or +27...'   },
                       ].map(f => (
                         <div key={f.id} className="group">
                           <label className="text-label uppercase tracking-widest text-muted group-focus-within:text-terracotta transition-colors block mb-2">{f.label}</label>
