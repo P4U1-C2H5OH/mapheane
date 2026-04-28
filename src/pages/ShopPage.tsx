@@ -12,6 +12,7 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { LightboxModal } from '../components/LightboxModal';
+import { trackInteraction } from '../lib/interactions';
 
 interface ShopPageProps {
   onNavigate: (page: any) => void;
@@ -127,7 +128,7 @@ function EditionCard({
       <div className="flex items-center justify-between gap-3 mt-auto">
         <div>
           <span className="font-serif text-lg text-charcoal">{formatPrice(edition.price.eur)}</span>
-          <span className="text-xs text-muted/60 ml-1.5">≈ €{edition.price.eur}</span>
+          <span className="text-xs text-muted/60 ml-1.5">≈ €{edition.price.eur.toFixed(2)}</span>
         </div>
         <button
           onClick={handleAdd}
@@ -161,29 +162,47 @@ export function ShopPage({ onNavigate }: ShopPageProps) {
   const filtered  = filter === 'All' ? available : available.filter(e => e.type === filter || (filter === 'Limited' && e.type === 'Artist Proof'));
 
   const handleAddEdition = (edition: Edition) => {
-    // Map edition to cart-compatible artwork item
     const matchArtwork = artworks.find(a => a.id === edition.artworkId);
     if (matchArtwork) {
-      // Create a modified artwork entry for the print
-      const printItem = {
-        ...matchArtwork,
-        id: `${edition.artworkId}-${edition.id}-${Math.floor(Math.random() * 100)}`,
-        title: `${edition.title} — ${edition.size}`,
-        price: edition.price.eur,
-        status: 'Available' as const,
-      };
-      addToCart(printItem);
+      addToCart(matchArtwork, {
+        id: edition.id,
+        title: edition.title,
+        size: edition.size,
+        paper: edition.paper,
+        type: edition.type,
+        price: edition.price,
+      });
       cartAdded(
         `Print added`,
         `"${edition.title}" · ${edition.size}`,
         { label: 'View Cart', onClick: () => onNavigate('cart') }
       );
+      trackInteraction({
+        action: 'cart_add',
+        targetType: 'edition',
+        targetId: edition.id,
+        targetTitle: edition.title,
+        source: 'shop_page',
+        metadata: {
+          artworkId: edition.artworkId,
+          size: edition.size,
+          type: edition.type,
+        },
+      });
     }
   };
 
   const handleWishlist = (edition: Edition) => {
     const adding = !isWishlisted(edition.id);
     toggleWishlist(edition.id);
+    trackInteraction({
+      action: adding ? 'wishlist_add' : 'wishlist_remove',
+      targetType: 'edition',
+      targetId: edition.id,
+      targetTitle: edition.title,
+      source: 'shop_page',
+      metadata: { artworkId: edition.artworkId, type: edition.type },
+    });
     if (adding) wishlisted(`"${edition.title}" saved`);
   };
 

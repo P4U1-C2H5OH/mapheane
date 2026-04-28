@@ -74,24 +74,128 @@ const pv = {
 };
 const pt = { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] };
 
+type RouteState = {
+  page: PageName;
+  artworkId: string | null;
+  momentId: string | null;
+  eventId: string | null;
+  certRef: string | null;
+};
+
+const PATH_TO_PAGE: Record<string, PageName> = {
+  '/': 'home',
+  '/about': 'about',
+  '/admin': 'admin',
+  '/auth': 'auth',
+  '/cart': 'cart',
+  '/checkout': 'checkout',
+  '/circle': 'circle',
+  '/commission': 'commission',
+  '/contact': 'contact',
+  '/events': 'events',
+  '/gallery': 'gallery',
+  '/moments': 'moments',
+  '/presskit': 'presskit',
+  '/privacy': 'privacy',
+  '/shop': 'shop',
+  '/studio-visit': 'studio-visit',
+  '/terms': 'terms',
+  '/track-order': 'track-order',
+  '/workshops': 'workshops',
+  '/wishlist': 'wishlist',
+  '/certificate': 'certificate',
+};
+
+const PAGE_TO_PATH: Partial<Record<PageName, string>> = Object.fromEntries(
+  Object.entries(PATH_TO_PAGE).map(([path, page]) => [page, path])
+) as Partial<Record<PageName, string>>;
+
+function routeFromLocation(): RouteState {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const params = new URLSearchParams(window.location.search);
+  const basePage = PATH_TO_PAGE[path] ?? '404';
+  const artworkId = params.get('artwork') ?? (path === '/artwork' ? params.get('id') : null);
+  const momentId = params.get('moment') ?? (path === '/moment' ? params.get('id') : null);
+  const eventId = params.get('event') ?? (path === '/event' ? params.get('id') : null);
+
+  return {
+    page: artworkId ? 'artwork' : momentId ? 'moment-detail' : eventId ? 'event-detail' : basePage,
+    artworkId,
+    momentId,
+    eventId,
+    certRef: params.get('ref'),
+  };
+}
+
+function urlForPage(page: PageName, params?: Record<string, string | null | undefined>) {
+  const path = PAGE_TO_PATH[page] ?? '/';
+  const search = new URLSearchParams();
+
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value) search.set(key, value);
+  });
+
+  const query = search.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 // ── Inner app (needs context access for useExitIntent) ────────────────────────
 function AppInner() {
-  const [page,       setPage]       = useState<PageName>('home');
-  const [artworkId,  setArtworkId]  = useState<string | null>(null);
-  const [momentId,   setMomentId]   = useState<string | null>(null);
-  const [eventId,    setEventId]    = useState<string | null>(null);
-  const [certRef,    setCertRef]    = useState<string | null>(null);
+  const initialRoute = routeFromLocation();
+  const [page,       setPage]       = useState<PageName>(initialRoute.page);
+  const [artworkId,  setArtworkId]  = useState<string | null>(initialRoute.artworkId);
+  const [momentId,   setMomentId]   = useState<string | null>(initialRoute.momentId);
+  const [eventId,    setEventId]    = useState<string | null>(initialRoute.eventId);
+  const [certRef,    setCertRef]    = useState<string | null>(initialRoute.certRef);
   const [searchOpen, setSearchOpen] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
 
+  useEffect(() => {
+    const handlePop = () => {
+      const next = routeFromLocation();
+      setPage(next.page);
+      setArtworkId(next.artworkId);
+      setMomentId(next.momentId);
+      setEventId(next.eventId);
+      setCertRef(next.certRef);
+    };
+
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
   const go = (p: PageName) => {
     setPage(p);
+    const nextUrl = urlForPage(p);
+    if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+      window.history.pushState({}, '', nextUrl);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  const goArtwork     = (id: string) => { setArtworkId(id); go('artwork'); };
-  const goMoment      = (id: string) => { setMomentId(id);  go('moment-detail'); };
-  const goEvent       = (id: string) => { setEventId(id);   go('event-detail'); };
-  const goCertificate = (ref: string) => { setCertRef(ref); go('certificate'); };
+  const goArtwork     = (id: string) => {
+    setArtworkId(id);
+    setPage('artwork');
+    window.history.pushState({}, '', urlForPage('gallery', { artwork: id }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const goMoment      = (id: string) => {
+    setMomentId(id);
+    setPage('moment-detail');
+    window.history.pushState({}, '', urlForPage('moments', { moment: id }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const goEvent       = (id: string) => {
+    setEventId(id);
+    setPage('event-detail');
+    window.history.pushState({}, '', urlForPage('events', { event: id }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const goCertificate = (ref: string) => {
+    setCertRef(ref);
+    setPage('certificate');
+    window.history.pushState({}, '', urlForPage('certificate', { ref }));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const isAdmin = page === 'admin';
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { eurToZar, formatZar } from '../../lib/pricing';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, ShoppingBag, Users, GitBranch,
-  MessageSquare, Plus, ArrowRight, AlertCircle, CheckCircle,
-  Clock, Star, Eye, Package, FileText, Megaphone, BarChart3
+  MessageSquare, Plus, ArrowRight, AlertCircle,
+  Clock, Star, FileText, Megaphone, Heart
 } from 'lucide-react';
 import type { AdminView } from '../../pages/AdminDashboard';
 
@@ -100,6 +101,8 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
   const [commSparkline,     setCommSparkline]     = useState<number[]>([0,0,0,0,0,0,0,0]);
   const [pendingOrders,     setPendingOrders]     = useState(0);
   const [unreadMsgs,        setUnreadMsgs]        = useState(0);
+  const [engagementN,       setEngagementN]       = useState(0);
+  const [intentN,           setIntentN]           = useState(0);
   const [dbArtworks,        setDbArtworks]        = useState<DbArtwork[]>([]);
 
   const totalArtworks  = dbArtworks.length;
@@ -122,6 +125,17 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
       setTotalRevenue(orders.reduce((s, o) => s + (o.total_zar ?? 0), 0));
       setPendingOrders(orders.filter(o => o.status === 'pending').length);
       setUnreadMsgs(messagesRes.count ?? 0);
+
+      const since = new Date();
+      since.setDate(since.getDate() - 7);
+      const [engagementRes, intentRes] = await Promise.all([
+        supabase.from('public_interactions').select('*', { count: 'exact', head: true }).gte('created_at', since.toISOString()),
+        supabase.from('public_interactions').select('*', { count: 'exact', head: true })
+          .gte('created_at', since.toISOString())
+          .in('action', ['wishlist_add', 'moment_like', 'cart_add', 'rsvp', 'notify_request', 'ticket_click', 'newsletter_signup']),
+      ]);
+      setEngagementN(engagementRes.count ?? 0);
+      setIntentN(intentRes.count ?? 0);
 
       // Artworks
       if (artworksRes.data?.length) {
@@ -255,7 +269,7 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
           <div className="flex items-center justify-between mb-3">
             <p className="font-serif italic text-lg text-charcoal">Needs attention</p>
             <span className="text-label text-muted">
-              {pendingOrders + unreadMsgs + commissionsN} items
+              {pendingOrders + unreadMsgs + commissionsN + intentN} items
             </span>
           </div>
 
@@ -265,6 +279,8 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
             sub="Check inbox for inquiries" urgent={unreadMsgs > 0} onClick={() => onNavigate('messages')} />
           <ActionItem icon={GitBranch} title="Commission: Ce Père Idéal"
             sub="Deposit received — begin creation" onClick={() => onNavigate('commissions')} />
+          <ActionItem icon={Heart} title={`${intentN} high-intent public signal${intentN !== 1 ? 's' : ''}`}
+            sub={`${engagementN} total interactions in the last 7 days`} urgent={intentN > 0} onClick={() => onNavigate('engagement')} />
           <ActionItem icon={Clock} title="Workshop — June 14"
             sub="3 spots remaining, 1 waitlist" onClick={() => onNavigate('workshops')} />
           <ActionItem icon={AlertCircle} title="Gallery Readiness: 68%"
@@ -316,7 +332,7 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
                   </div>
                   <div className="text-right flex-shrink-0">
                     {art.price_eur != null && (
-                      <p className="text-sm text-charcoal">R {(art.price_eur * 18).toLocaleString()}</p>
+                      <p className="text-sm text-charcoal">{formatZar(eurToZar(art.price_eur))}</p>
                     )}
                     <span className={`text-label uppercase tracking-widest ${art.status === 'Available' ? 'text-sage' : 'text-muted/50'}`}>
                       {art.status}
@@ -359,7 +375,7 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
           { label: 'New artwork',    icon: Plus,    view: 'gallery'     as AdminView, color: 'bg-terracotta text-background' },
           { label: 'Write moment',  icon: FileText, view: 'moments'     as AdminView, color: 'bg-charcoal text-background' },
           { label: 'Email blast',   icon: Megaphone,view: 'marketing'   as AdminView, color: 'bg-sage text-background' },
-          { label: 'Analytics',     icon: BarChart3,view: 'analytics'   as AdminView, color: 'bg-parchment text-charcoal border border-charcoal/12' },
+          { label: 'Engagement',    icon: Heart,    view: 'engagement'  as AdminView, color: 'bg-parchment text-charcoal border border-charcoal/12' },
         ].map(({ label, icon: Icon, view, color }) => (
           <button key={label} onClick={() => onNavigate(view)}
             className={`flex items-center gap-2.5 px-4 py-3 text-xs font-sans uppercase tracking-widest transition-all duration-300 hover:opacity-80 ${color}`}>
@@ -371,5 +387,3 @@ export function CommandCenter({ onNavigate }: CommandCenterProps) {
     </div>
   );
 }
-
-

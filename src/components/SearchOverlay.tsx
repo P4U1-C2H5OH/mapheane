@@ -4,6 +4,7 @@ import { Search, X, ArrowRight, Image, FileText, Calendar } from 'lucide-react';
 import { useArtworks } from '../hooks/useArtworks';
 import { useMoments } from '../hooks/useMoments';
 import { useEvents } from '../hooks/useEvents';
+import { eurToZar, formatZar } from '../lib/pricing';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export function SearchOverlay({ isOpen, onClose, onNavigate, onSelectArtwork, on
       .slice(0, 4)
       .map(a => ({
         id: `art-${a.id}`, type: 'artwork' as const,
-        title: a.title, sub: `${a.technique} · R${(a.price * 18).toLocaleString()}`,
+        title: a.title, sub: `${a.technique} · ${formatZar(eurToZar(a.price))}`,
         image: a.images[0], cropPosition: a.cropPosition,
         onClick: () => { onSelectArtwork(a.id); onClose(); },
       }));

@@ -35,4 +35,7 @@ const ordersLimit     = makeLimiter('rl:orders',     3,  '1 h');
 /** 20 requests per IP per hour — order tracking (public ref lookup) */
 const trackLimit      = makeLimiter('rl:track',      20, '1 h');
 
-module.exports = { getIp, contactLimit, newsletterLimit, ordersLimit, trackLimit };
+/** 120 requests per IP per hour — public interaction telemetry */
+const interactionsLimit = makeLimiter('rl:interactions', 120, '1 h');
+
+module.exports = { getIp, contactLimit, newsletterLimit, ordersLimit, trackLimit, interactionsLimit };

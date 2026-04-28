@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, MapPin, Tag, Heart } from 'lucide-react';
 import { useMoments, DbMoment } from '../hooks/useMoments';
 import { MomentType } from '../data/moments';
 import { useScrollReveal } from '../hooks/useScrollReveal';
+import { trackInteraction } from '../lib/interactions';
 
 interface MomentsPageProps {
   onNavigate: (page: any) => void;
@@ -21,7 +22,7 @@ const momentTypeLabels: Record<MomentType, string> = {
 };
 
 export function MomentsPage({ onNavigate, onSelectMoment }: MomentsPageProps) {
-  const { moments } = useMoments();
+  const { moments, loading, error } = useMoments();
   const [selectedType, setSelectedType] = useState<MomentType | 'all'>('all');
   const [likedMoments, setLikedMoments] = useState<Set<string>>(new Set());
 
@@ -37,15 +38,23 @@ export function MomentsPage({ onNavigate, onSelectMoment }: MomentsPageProps) {
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
-  const toggleLike = (id: string) => {
+  const toggleLike = (moment: DbMoment) => {
+    const liked = likedMoments.has(moment.id);
     setLikedMoments(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
+      if (liked) {
+        newSet.delete(moment.id);
       } else {
-        newSet.add(id);
+        newSet.add(moment.id);
       }
       return newSet;
+    });
+    trackInteraction({
+      action: liked ? 'moment_unlike' : 'moment_like',
+      targetType: 'moment',
+      targetId: moment.id,
+      targetTitle: moment.title,
+      source: 'moments_page',
     });
   };
 
@@ -122,13 +131,25 @@ export function MomentsPage({ onNavigate, onSelectMoment }: MomentsPageProps) {
               moment={moment}
               index={index}
               isLiked={likedMoments.has(moment.id)}
-              onLike={() => toggleLike(moment.id)}
+              onLike={() => toggleLike(moment)}
               onClick={() => onSelectMoment(moment.id)}
             />
           ))}
         </div>
 
-        {sortedMoments.length === 0 && (
+        {loading && sortedMoments.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-muted text-lg">Loading moments...</p>
+          </div>
+        )}
+
+        {!loading && error && sortedMoments.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-muted text-lg">Unable to load moments. Please refresh.</p>
+          </div>
+        )}
+
+        {!loading && !error && sortedMoments.length === 0 && (
           <div className="text-center py-20">
             <p className="text-muted text-lg">No moments found in this category.</p>
           </div>

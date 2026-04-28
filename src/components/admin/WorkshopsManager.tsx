@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronUp, Mail, AlertCircle, BookOpen,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { formatZar } from '../../lib/pricing';
 
 interface Booking {
   id: string;
@@ -294,7 +295,7 @@ export function WorkshopsManager() {
 
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-charcoal/5">
                     <span className="text-xs text-muted">{w.price.local} / {w.price.intl}</span>
-                    <span className="text-xs text-charcoal font-sans">R {w.revenue.toLocaleString()}</span>
+                    <span className="text-xs text-charcoal font-sans">{formatZar(w.revenue)}</span>
                   </div>
                 </motion.div>
               );
@@ -343,7 +344,7 @@ export function WorkshopsManager() {
                     <div className="flex justify-between">
                       <div>
                         <p className="text-label text-muted mb-0.5">Workshop revenue</p>
-                        <p className="font-serif text-2xl text-terracotta">R {selected.revenue.toLocaleString()}</p>
+                        <p className="font-serif text-2xl text-terracotta">{formatZar(selected.revenue)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-label text-muted mb-0.5">Pricing</p>

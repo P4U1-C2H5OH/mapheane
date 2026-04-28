@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { eurToZar } from '../lib/pricing';
 
 interface SEOMeta {
   title?: string;
@@ -85,7 +86,7 @@ export function useSEO({
         offers: {
           '@type': 'Offer',
           priceCurrency: 'ZAR',
-          price: (price * 18).toString(),
+          price: eurToZar(price).toFixed(2),
           availability: 'https://schema.org/InStock',
           seller: { '@type': 'Person', name: artist },
         },

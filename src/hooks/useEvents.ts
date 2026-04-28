@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { EventType } from '../data/events';
 
+const EVENTS_CACHE_KEY = 'mapheane_events_cache';
+let cachedEvents: DbEvent[] | null = null;
+let inFlight: Promise<DbEvent[]> | null = null;
+
 export interface DbEventLocation {
   venue: string;
   address: string;
@@ -65,21 +69,84 @@ function mapRow(row: Record<string, unknown>): DbEvent {
   };
 }
 
-export function useEvents() {
-  const [events, setEvents] = useState<DbEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+function readCache(): DbEvent[] {
+  if (cachedEvents) return cachedEvents;
+  try {
+    const saved = localStorage.getItem(EVENTS_CACHE_KEY);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    cachedEvents = parsed.filter((event: any) => typeof event?.id === 'string');
+    return cachedEvents;
+  } catch {
+    return [];
+  }
+}
 
-  useEffect(() => {
-    supabase
+function writeCache(events: DbEvent[]) {
+  cachedEvents = events;
+  try {
+    localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(events));
+  } catch {
+    // Best-effort resilience only; Supabase remains the source of truth.
+  }
+}
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchEventsWithRetry() {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await supabase
       .from('events')
       .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setEvents(data.map(mapRow));
+      .order('created_at', { ascending: false });
+
+    if (!error) {
+      const next = (data ?? []).map(mapRow);
+      writeCache(next);
+      return next;
+    }
+
+    lastError = error;
+    await delay(350 * (attempt + 1));
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Failed to load events from Supabase.');
+}
+
+export function useEvents() {
+  const [events, setEvents] = useState<DbEvent[]>(() => readCache());
+  const [loading, setLoading] = useState(() => readCache().length === 0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!inFlight) {
+      inFlight = fetchEventsWithRetry().finally(() => {
+        inFlight = null;
+      });
+    }
+
+    inFlight
+      .then(next => {
+        if (!active) return;
+        setEvents(next);
+        setError(null);
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }).catch(err => {
+        if (!active) return;
+        const fallback = readCache();
+        setEvents(fallback);
+        setError(err instanceof Error ? err.message : 'Failed to load events.');
+        setLoading(false);
+      });
+
+    return () => { active = false; };
   }, []);
 
-  return { events, loading };
+  return { events, loading, error };
 }

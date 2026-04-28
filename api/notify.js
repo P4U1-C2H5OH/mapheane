@@ -1,5 +1,7 @@
 const { Resend } = require('resend');
 const { esc } = require('./_lib/escape');
+const { requireAdmin } = require('./_lib/auth');
+const { formatZar } = require('./_lib/pricing');
 
 const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
@@ -15,7 +17,7 @@ const SUBJECTS = {
 function buildHtml(status, { customerName, ref, items, total, tracking }) {
   const name = esc(customerName ?? 'Collector');
   const itemRows = (items ?? [])
-    .map(i => `<tr><td style="padding:6px 0;color:#2D2A26;">${esc(i.title)}</td><td style="padding:6px 0;text-align:right;color:#2D2A26;">R ${Number(i.price).toLocaleString('en-ZA')}</td></tr>`)
+    .map(i => `<tr><td style="padding:6px 0;color:#2D2A26;">${esc(i.title)}</td><td style="padding:6px 0;text-align:right;color:#2D2A26;">${formatZar(Number(i.price))}</td></tr>`)
     .join('');
 
   const bodies = {
@@ -61,7 +63,7 @@ function buildHtml(status, { customerName, ref, items, total, tracking }) {
                 ${itemRows}
                 <tr>
                   <td style="padding-top:8px;font-weight:600;color:#2D2A26;border-top:1px solid #EDE8E0;">Total</td>
-                  <td style="padding-top:8px;font-weight:600;text-align:right;color:#2D2A26;border-top:1px solid #EDE8E0;">R ${Number(total).toLocaleString('en-ZA')}</td>
+                  <td style="padding-top:8px;font-weight:600;text-align:right;color:#2D2A26;border-top:1px solid #EDE8E0;">${formatZar(Number(total))}</td>
                 </tr>
               </table>` : ''}
               <p style="margin-top:32px;">With gratitude,<br><em style="font-family:Georgia,serif;">Mapheane</em></p>
@@ -82,7 +84,7 @@ function buildHtml(status, { customerName, ref, items, total, tracking }) {
 async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const origin = req.headers.origin;
@@ -91,6 +93,9 @@ async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const admin = await requireAdmin(req);
+  if (admin.error) return res.status(admin.status).json({ error: admin.error });
 
   const { status, customerEmail, customerName, ref, items, total, tracking } = req.body ?? {};
 

@@ -6,11 +6,12 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { LightboxModal } from './LightboxModal';
+import { eurToZar, formatZar } from '../lib/pricing';
 
 interface QuickViewModalProps {
   artwork: Artwork;
   onClose: () => void;
-  onViewFull: (id: number) => void;
+  onViewFull: (id: string) => void;
   onCommission?: (artwork: Artwork) => void;
 }
 
@@ -58,8 +59,8 @@ export function QuickViewModal({ artwork, onClose, onViewFull, onCommission }: Q
   };
 
   const priceDisplay = new Intl.NumberFormat('en-ZA', {
-    style: 'currency', currency: 'ZAR', maximumFractionDigits: 0,
-  }).format(artwork.price * 18); // rough ZAR approximation from EUR
+    style: 'currency', currency: 'ZAR', minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(eurToZar(artwork.price));
 
   return (
     <>
@@ -173,12 +174,12 @@ export function QuickViewModal({ artwork, onClose, onViewFull, onCommission }: Q
               {/* Price + dimensions */}
               <div className="flex items-baseline justify-between mb-2">
                 <div>
-                  <span className="font-serif text-2xl text-charcoal">R {(artwork.price * 18).toLocaleString()}</span>
+                  <span className="font-serif text-2xl text-charcoal">{formatZar(eurToZar(artwork.price))}</span>
                   <span className="text-xs text-muted ml-2">ZAR</span>
                 </div>
                 <span className="text-xs text-muted font-sans uppercase tracking-widest">{artwork.dimensions}</span>
               </div>
-              <p className="text-xs text-muted/60 mb-6 font-sans">≈ €{artwork.price.toLocaleString()} · Original work</p>
+              <p className="text-xs text-muted/60 mb-6 font-sans">≈ €{artwork.price.toFixed(2)} · Original work</p>
 
               {/* Description */}
               <p className="text-sm text-charcoal/70 leading-relaxed mb-8 flex-1">

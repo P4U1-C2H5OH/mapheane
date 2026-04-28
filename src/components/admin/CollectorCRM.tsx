@@ -4,6 +4,7 @@ import {
   Search, Plus, Heart, MapPin, Mail, Phone, Clock, Edit3, X, Check, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { formatZar } from '../../lib/pricing';
 
 type Segment = 'all' | 'vip' | 'collector' | 'prospect' | 'workshop';
 
@@ -147,7 +148,7 @@ function CollectorDetail({ c, onClose }: { c: Collector; onClose: () => void }) 
           </span>
           <div className="text-right">
             <p className="text-label text-muted">Estimated LTV</p>
-            <p className="font-serif text-2xl text-terracotta">R {c.ltv.toLocaleString()}</p>
+            <p className="font-serif text-2xl text-terracotta">{formatZar(c.ltv)}</p>
           </div>
         </div>
 
@@ -167,7 +168,7 @@ function CollectorDetail({ c, onClose }: { c: Collector; onClose: () => void }) 
 
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Total spent',      value: `R ${c.totalSpend.toLocaleString()}` },
+            { label: 'Total spent',      value: formatZar(c.totalSpend) },
             { label: 'Purchases',         value: String(c.purchaseCount) },
             { label: 'Works wishlisted',  value: String(c.wishlistCount) },
             { label: 'Source',            value: c.source },

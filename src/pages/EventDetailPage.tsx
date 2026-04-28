@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { generateICS, generateGoogleCalendarUrl } from '../data/events';
 import { useEvents } from '../hooks/useEvents';
+import { trackInteraction } from '../lib/interactions';
 
 interface EventDetailPageProps {
   eventId: string;
@@ -16,12 +17,28 @@ interface EventDetailPageProps {
 export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDetailPageProps) {
   const { events } = useEvents();
   const event = events.find(e => e.id === eventId);
+  const eventViewId = event?.id;
+  const eventViewTitle = event?.title;
+  const eventViewStatus = event?.status;
+  const eventViewType = event?.type;
   const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
   const [showCalendarOptions, setShowCalendarOptions] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [eventId]);
+
+  useEffect(() => {
+    if (!eventViewId || !eventViewTitle) return;
+    trackInteraction({
+      action: 'event_view',
+      targetType: 'event',
+      targetId: eventViewId,
+      targetTitle: eventViewTitle,
+      source: 'event_detail',
+      metadata: { status: eventViewStatus, type: eventViewType },
+    });
+  }, [eventViewId, eventViewTitle, eventViewStatus, eventViewType]);
 
   if (!event) {
     return (
@@ -47,6 +64,13 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
     } else {
       try { await navigator.clipboard.writeText(url); } catch {}
     }
+    trackInteraction({
+      action: 'share',
+      targetType: 'event',
+      targetId: event.id,
+      targetTitle: event.title,
+      source: 'event_detail',
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -79,11 +103,27 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+    trackInteraction({
+      action: 'calendar_add',
+      targetType: 'event',
+      targetId: event.id,
+      targetTitle: event.title,
+      source: 'event_detail',
+      metadata: { provider: 'ics' },
+    });
   };
 
   const handleGoogleCalendar = () => {
     const url = generateGoogleCalendarUrl(event as any);
     window.open(url, '_blank');
+    trackInteraction({
+      action: 'calendar_add',
+      targetType: 'event',
+      targetId: event.id,
+      targetTitle: event.title,
+      source: 'event_detail',
+      metadata: { provider: 'google' },
+    });
   };
 
   const getTypeColor = (type: string) => {
@@ -288,8 +328,23 @@ export function EventDetailPage({ eventId, onNavigate, onSelectEvent }: EventDet
                       onClick={() => {
                         if (event.ticketInfo?.url) {
                           window.open(event.ticketInfo.url, '_blank');
+                          trackInteraction({
+                            action: 'ticket_click',
+                            targetType: 'event',
+                            targetId: event.id,
+                            targetTitle: event.title,
+                            source: 'event_detail',
+                            metadata: { url: event.ticketInfo.url },
+                          });
                         } else {
                           setRsvpSubmitted(true);
+                          trackInteraction({
+                            action: 'rsvp',
+                            targetType: 'event',
+                            targetId: event.id,
+                            targetTitle: event.title,
+                            source: 'event_detail',
+                          });
                         }
                       }}
                       className="w-full py-4 border-2 border-charcoal text-charcoal hover:bg-charcoal hover:text-white transition-colors flex items-center justify-center gap-3 font-medium tracking-wider uppercase text-sm"

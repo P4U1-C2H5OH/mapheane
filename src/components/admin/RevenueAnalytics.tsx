@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { eurToZar } from '../../lib/pricing';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Calendar, DollarSign, Users, BarChart2 } from 'lucide-react';
 
@@ -81,7 +82,7 @@ export function RevenueAnalytics() {
     async function load() {
       const [{ data: rows }, { data: commRows }, { data: artRows }] = await Promise.all([
         supabase.from('orders').select('created_at, total_zar, payment_method, customer').neq('status', 'cancelled'),
-        supabase.from('commissions').select('price_eur, stage'),
+        supabase.from('commissions').select('price_eur, value_zar, stage'),
         supabase.from('artworks').select('status'),
       ]);
 
@@ -134,10 +135,10 @@ export function RevenueAnalytics() {
         setKpis(prev => ({ ...prev, total12m: t12m, totalPrev: tPrev }));
       }
 
-      // Commission LTV (non-cancelled, price_eur × 18 ≈ ZAR)
+      // Commission LTV (prefer ZAR-native value, fall back to legacy EUR value)
       if (commRows) {
         const active = commRows.filter(c => c.stage !== 'cancelled');
-        const commLTV = Math.round(active.reduce((s, c) => s + (c.price_eur ?? 0), 0) * 18);
+        const commLTV = active.reduce((s, c) => s + (c.value_zar ?? eurToZar(c.price_eur ?? 0)), 0);
         setKpis(prev => ({ ...prev, commLTV, activeComm: active.length }));
       }
 

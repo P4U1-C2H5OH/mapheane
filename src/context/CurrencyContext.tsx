@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { EUR_RATES, formatMoney, roundMoney, zarToEur } from '../lib/pricing';
 
 export type Currency = 'ZAR' | 'EUR' | 'USD' | 'GBP';
 
@@ -11,10 +12,10 @@ interface CurrencyConfig {
 }
 
 export const CURRENCIES: CurrencyConfig[] = [
-  { code: 'ZAR', symbol: 'R',  label: 'South African Rand', flag: '🇿🇦', rateFromEUR: 18   },
-  { code: 'EUR', symbol: '€',  label: 'Euro',               flag: '🇪🇺', rateFromEUR: 1    },
-  { code: 'USD', symbol: '$',  label: 'US Dollar',          flag: '🇺🇸', rateFromEUR: 1.09 },
-  { code: 'GBP', symbol: '£',  label: 'British Pound',      flag: '🇬🇧', rateFromEUR: 0.86 },
+  { code: 'ZAR', symbol: 'R',  label: 'South African Rand', flag: '🇿🇦', rateFromEUR: EUR_RATES.ZAR },
+  { code: 'EUR', symbol: '€',  label: 'Euro',               flag: '🇪🇺', rateFromEUR: EUR_RATES.EUR },
+  { code: 'USD', symbol: '$',  label: 'US Dollar',          flag: '🇺🇸', rateFromEUR: EUR_RATES.USD },
+  { code: 'GBP', symbol: '£',  label: 'British Pound',      flag: '🇬🇧', rateFromEUR: EUR_RATES.GBP },
 ];
 
 const STORAGE_KEY = 'mapheane_currency';
@@ -49,22 +50,16 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }, [currencyCode]);
 
   const convert = useCallback((eur: number): number => {
-    return Math.round(eur * currency.rateFromEUR);
+    return roundMoney(eur * currency.rateFromEUR);
   }, [currency]);
 
   const format = useCallback((eur: number, opts: { decimals?: boolean; showCode?: boolean } = {}): string => {
-    const amount = convert(eur);
-    const formatted = opts.decimals
-      ? amount.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : amount.toLocaleString('en-ZA');
-    return opts.showCode
-      ? `${currency.symbol}${formatted} ${currency.code}`
-      : `${currency.symbol}${formatted}`;
+    return formatMoney(convert(eur), currency.code, opts.showCode);
   }, [convert, currency]);
 
   /** For ZAR-native prices (shipping zones, workshop fees). Converts ZAR→EUR first then to chosen currency */
   const fromZAR = useCallback((zar: number): string => {
-    const eur = zar / 18;
+    const eur = zarToEur(zar);
     return format(eur);
   }, [format]);
 

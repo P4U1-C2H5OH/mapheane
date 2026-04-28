@@ -56,19 +56,30 @@ export function MomentsManager() {
   const [error, setError]             = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('moments')
-      .select('*')
-      .order('date', { ascending: false })
-      .then(({ data, error }) => {
+    let active = true;
+
+    async function loadMoments() {
+      const { data, error } = await supabase
+        .from('moments')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (!active) return;
+
+      try {
         if (error) {
           console.error('Failed to load moments:', error);
           setError('Unable to load moments. Please refresh.');
         } else {
           setMoments((data ?? []).map(mapRow));
         }
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadMoments();
+    return () => { active = false; };
   }, []);
 
   const handleCreate = () => {

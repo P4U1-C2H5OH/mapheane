@@ -1,6 +1,7 @@
 const { Resend }  = require('resend');
 const { esc }     = require('./_lib/escape');
 const { contactLimit, getIp } = require('./_lib/ratelimit');
+const { requireAdmin } = require('./_lib/auth');
 
 const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
@@ -9,7 +10,7 @@ const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').tr
 async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const origin = req.headers.origin;
@@ -18,6 +19,9 @@ async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const admin = await requireAdmin(req);
+  if (admin.error) return res.status(admin.status).json({ error: admin.error });
 
   const ip = getIp(req);
   const { success } = await contactLimit.limit(ip);

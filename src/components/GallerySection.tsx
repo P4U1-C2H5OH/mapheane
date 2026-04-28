@@ -7,6 +7,7 @@ import { useArtworks } from '../hooks/useArtworks';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { QuickViewModal } from './QuickViewModal';
+import { trackInteraction } from '../lib/interactions';
 
 interface GallerySectionProps {
   onSelectArtwork?: (id: string) => void;
@@ -14,7 +15,7 @@ interface GallerySectionProps {
 }
 
 export function GallerySection({ onSelectArtwork, onViewFullGallery }: GallerySectionProps) {
-  const { artworks } = useArtworks();
+  const { artworks, error } = useArtworks();
   const [quickView, setQuickView] = useState<Artwork | null>(null);
 
   return (
@@ -49,10 +50,29 @@ export function GallerySection({ onSelectArtwork, onViewFullGallery }: GallerySe
                 artwork={art}
                 index={index}
                 onViewFull={() => onSelectArtwork?.(art.id)}
-                onQuickView={() => setQuickView(art)}
+                onQuickView={() => {
+                  trackInteraction({
+                    action: 'quick_view',
+                    targetType: 'artwork',
+                    targetId: art.id,
+                    targetTitle: art.title,
+                    source: 'home_gallery',
+                  });
+                  setQuickView(art);
+                }}
               />
             ))}
           </div>
+
+          {error && artworks.length === 0 && (
+            <div className="py-12 text-center border border-charcoal/8 bg-parchment/30">
+              <p className="font-serif italic text-2xl text-charcoal/35 mb-2">The collection could not load.</p>
+              <button onClick={() => window.location.reload()}
+                className="text-xs font-sans uppercase tracking-widest text-terracotta hover:text-terracottaDark transition-colors">
+                Reload collection
+              </button>
+            </div>
+          )}
 
           {/* Stat row */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-20 mt-20 pt-16 border-t border-charcoal/5">
@@ -104,6 +124,13 @@ function GalleryCard({
     e.stopPropagation();
     const added = !liked;
     toggleWishlist(artwork.id);
+    trackInteraction({
+      action: added ? 'wishlist_add' : 'wishlist_remove',
+      targetType: 'artwork',
+      targetId: artwork.id,
+      targetTitle: artwork.title,
+      source: 'home_gallery',
+    });
     if (added) wishlisted(`"${artwork.title}" saved`);
   };
 

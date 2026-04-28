@@ -10,6 +10,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { LightboxModal } from '../components/LightboxModal';
 import { CommissionModal } from '../components/CommissionModal';
+import { trackInteraction } from '../lib/interactions';
 
 interface ArtworkPageProps {
   artworkId: string;
@@ -25,6 +26,10 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
   const artworkEditions = artwork
     ? editions.filter(e => e.artworkId === artwork.id && e.available)
     : [];
+  const artworkViewId = artwork?.id;
+  const artworkViewTitle = artwork?.title;
+  const artworkViewStatus = artwork?.status;
+  const artworkViewMedium = artwork?.medium;
 
   useSEO({
     title: artwork?.title,
@@ -39,6 +44,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { cartAdded, wishlisted } = useToast();
+  const { format: formatPrice, currency } = useCurrency();
 
   // 'original' or an edition.id
   const [selectedSlot, setSelectedSlot] = useState<string>('original');
@@ -53,6 +59,18 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
 
   useEffect(() => { window.scrollTo(0, 0); setActiveImg(0); setSelectedSlot('original'); }, [artworkId]);
 
+  useEffect(() => {
+    if (!artworkViewId || !artworkViewTitle) return;
+    trackInteraction({
+      action: 'artwork_view',
+      targetType: 'artwork',
+      targetId: artworkViewId,
+      targetTitle: artworkViewTitle,
+      source: 'artwork_detail',
+      metadata: { status: artworkViewStatus, medium: artworkViewMedium },
+    });
+  }, [artworkViewId, artworkViewTitle, artworkViewStatus, artworkViewMedium]);
+
   if (!artwork) return null;
 
   const liked = isWishlisted(artwork.id);
@@ -62,8 +80,6 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
   const displaySub      = selectedEdition
     ? `${selectedEdition.size}${selectedEdition.paper ? ` · ${selectedEdition.paper}` : ''}`
     : artwork.dimensions;
-
-  const { format: formatPrice, currency } = useCurrency();
 
   const handleAddToCart = () => {
     if (selectedSlot === 'original') {
@@ -83,6 +99,18 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
       return;
     }
     setAddedToCart(true);
+    trackInteraction({
+      action: 'cart_add',
+      targetType: selectedEdition ? 'edition' : 'artwork',
+      targetId: selectedEdition?.id ?? artwork.id,
+      targetTitle: selectedEdition?.title ?? artwork.title,
+      source: 'artwork_detail',
+      metadata: {
+        artworkId: artwork.id,
+        artworkTitle: artwork.title,
+        quantity: selectedSlot === 'original' ? quantity : 1,
+      },
+    });
     setTimeout(() => setAddedToCart(false), 2500);
     cartAdded(
       `"${artwork.title}" added`,
@@ -94,6 +122,13 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
   const handleWishlist = () => {
     const adding = !liked;
     toggleWishlist(artwork.id);
+    trackInteraction({
+      action: adding ? 'wishlist_add' : 'wishlist_remove',
+      targetType: 'artwork',
+      targetId: artwork.id,
+      targetTitle: artwork.title,
+      source: 'artwork_detail',
+    });
     if (adding) wishlisted(`"${artwork.title}" saved`);
   };
 
@@ -105,6 +140,14 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
     if (!existing.includes(notifyEmail)) {
       localStorage.setItem(key, JSON.stringify([...existing, notifyEmail]));
     }
+    trackInteraction({
+      action: 'notify_request',
+      targetType: 'artwork',
+      targetId: artwork.id,
+      targetTitle: artwork.title,
+      source: 'artwork_detail',
+      metadata: { email: notifyEmail },
+    });
     setNotifySent(true);
     setNotifyEmail('');
   };
@@ -115,6 +158,13 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
     } else {
       await navigator.clipboard.writeText(window.location.href);
     }
+    trackInteraction({
+      action: 'share',
+      targetType: 'artwork',
+      targetId: artwork.id,
+      targetTitle: artwork.title,
+      source: 'artwork_detail',
+    });
   };
 
   const isOriginalSold = selectedSlot === 'original' && artwork.status === 'Sold';
@@ -273,7 +323,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
                   <span className="font-serif text-3xl text-charcoal">{formatPrice(displayPrice)}</span>
                   <span className="text-sm text-muted">{currency.code}</span>
                 </div>
-                <p className="text-xs text-muted/60">≈ €{displayPrice.toLocaleString()} · {displaySub}</p>
+                <p className="text-xs text-muted/60">≈ €{displayPrice.toFixed(2)} · {displaySub}</p>
               </div>
 
               <div className="w-12 h-px bg-terracotta/30 mb-8" />

@@ -1,11 +1,127 @@
-const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const { esc } = require('./_lib/escape');
 const { ordersLimit, getIp } = require('./_lib/ratelimit');
+const { createAdminClient } = require('./_lib/auth');
+const { eurToZar, zarToEur, roundMoney, formatZar } = require('./_lib/pricing');
 
 const STUDIO_EMAIL   = 'spiritp83@gmail.com';
 const FROM_ADDRESS   = 'Mapheane Studio <onboarding@resend.dev>';
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
+const DELIVERY_ZONES = {
+  maseru: 150,
+  lesotho: 280,
+  southafrica: 450,
+  international: 950,
+};
+
+function asQuantity(value) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 20) return null;
+  return n;
+}
+
+function zarFromRow(row) {
+  const zar = Number(row.price_zar);
+  if (Number.isFinite(zar) && zar > 0) return roundMoney(zar);
+  const eur = Number(row.price_eur);
+  return Number.isFinite(eur) && eur > 0 ? eurToZar(eur) : 0;
+}
+
+async function normalizeCartItems(supabase, cartItems) {
+  if (!Array.isArray(cartItems) || cartItems.length === 0 || cartItems.length > 20) {
+    throw new Error('Invalid cart');
+  }
+
+  const editionIds = [...new Set(cartItems.map(i => i?.edition?.id).filter(Boolean))];
+  const originalArtworkIds = [...new Set(
+    cartItems
+      .filter(i => !i?.edition?.id)
+      .map(i => i?.artwork?.id)
+      .filter(Boolean)
+  )];
+
+  const [editionsRes, artworksRes] = await Promise.all([
+    editionIds.length
+      ? supabase
+        .from('editions')
+        .select('id, artwork_id, title, medium, size, paper, type, price_zar, price_eur, image_url, available')
+        .in('id', editionIds)
+      : Promise.resolve({ data: [], error: null }),
+    originalArtworkIds.length
+      ? supabase
+        .from('artworks')
+        .select('id, title, medium, dimensions, price_eur, status, images, year')
+        .in('id', originalArtworkIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (editionsRes.error) throw new Error('Unable to validate editions');
+  if (artworksRes.error) throw new Error('Unable to validate artworks');
+
+  const editions = new Map((editionsRes.data ?? []).map(row => [row.id, row]));
+  const artworks = new Map((artworksRes.data ?? []).map(row => [row.id, row]));
+
+  return cartItems.map(item => {
+    const quantity = asQuantity(item?.quantity);
+    if (!quantity) throw new Error('Invalid item quantity');
+
+    if (item?.edition?.id) {
+      const edition = editions.get(item.edition.id);
+      if (!edition || edition.available === false) throw new Error('An edition in your cart is no longer available');
+
+      const priceZar = zarFromRow(edition);
+      if (priceZar <= 0) throw new Error('An edition in your cart has invalid pricing');
+
+      return {
+        artwork: item.artwork?.id ? { id: item.artwork.id, title: item.artwork.title ?? edition.title } : null,
+        edition: {
+          id: edition.id,
+          artworkId: edition.artwork_id,
+          title: edition.title,
+          medium: edition.medium,
+          size: edition.size,
+          paper: edition.paper,
+          type: edition.type,
+          price: {
+            zar: priceZar,
+            eur: Number(edition.price_eur) || zarToEur(priceZar),
+          },
+          image: edition.image_url,
+        },
+        title: edition.title,
+        medium: edition.medium,
+        priceZar,
+        quantity,
+      };
+    }
+
+    const artworkId = item?.artwork?.id;
+    const artwork = artworks.get(artworkId);
+    if (!artwork || artwork.status !== 'Available') throw new Error('An artwork in your cart is no longer available');
+
+    const eur = Number(artwork.price_eur);
+    const priceZar = Number.isFinite(eur) && eur > 0 ? eurToZar(eur) : 0;
+    if (priceZar <= 0) throw new Error('An artwork in your cart has invalid pricing');
+
+    return {
+      artwork: {
+        id: artwork.id,
+        title: artwork.title,
+        medium: artwork.medium,
+        dimensions: artwork.dimensions,
+        price: eur,
+        status: artwork.status,
+        images: Array.isArray(artwork.images) ? artwork.images : [],
+        year: artwork.year,
+      },
+      edition: null,
+      title: artwork.title,
+      medium: artwork.medium,
+      priceZar,
+      quantity,
+    };
+  });
+}
 
 async function handler(req, res) {
   // CORS
@@ -32,22 +148,32 @@ async function handler(req, res) {
   const {
     ref, contact, address, fulfilment,
     deliveryZone, pickupPoint, paymentMethod,
-    proofPath, cartItems, totalZar, shippingZar,
+    proofPath, cartItems, totalZar,
   } = req.body ?? {};
 
   // Validate required fields
   if (!ref || !contact?.email || !contact?.name || !paymentMethod || !cartItems?.length) {
     return res.status(400).json({ error: 'Missing required order fields' });
   }
-  if (typeof totalZar !== 'number' || totalZar <= 0 || totalZar > 1_000_000) {
+  if (totalZar != null && (typeof totalZar !== 'number' || totalZar <= 0 || totalZar > 1_000_000)) {
     return res.status(400).json({ error: 'Invalid order total' });
   }
 
-  const supabase = createClient(
-    process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY
-  );
+  const supabase = createAdminClient();
   const resend = new Resend(process.env.RESEND_API_KEY);
+
+  let normalizedItems;
+  let serverShippingZar;
+  let serverTotalZar;
+  try {
+    normalizedItems = await normalizeCartItems(supabase, cartItems);
+    const subtotalZar = roundMoney(normalizedItems.reduce((sum, item) => sum + item.priceZar * item.quantity, 0));
+    serverShippingZar = fulfilment === 'pickup' ? 0 : DELIVERY_ZONES[deliveryZone] ?? null;
+    if (serverShippingZar == null) return res.status(400).json({ error: 'Invalid delivery zone' });
+    serverTotalZar = roundMoney(subtotalZar + serverShippingZar);
+  } catch (err) {
+    return res.status(400).json({ error: err.message ?? 'Invalid cart' });
+  }
 
   // Insert order into Supabase
   const { error: dbError } = await supabase.from('orders').insert({
@@ -59,9 +185,9 @@ async function handler(req, res) {
     address: address ?? null,
     delivery_zone: deliveryZone ?? null,
     pickup_point: pickupPoint ?? null,
-    cart_items: cartItems,
-    total_zar: totalZar,
-    shipping_zar: shippingZar ?? 0,
+    cart_items: normalizedItems,
+    total_zar: serverTotalZar,
+    shipping_zar: serverShippingZar,
     proof_url: proofPath ?? null,
   });
 
@@ -72,8 +198,8 @@ async function handler(req, res) {
 
   // Send emails in parallel — don't block order success if email fails
   try {
-    const itemList = cartItems
-      .map(i => `<li>${esc(i.title)} × ${i.quantity} — R${(i.priceZar * i.quantity).toLocaleString()}</li>`)
+    const itemList = normalizedItems
+      .map(i => `<li>${esc(i.title)} × ${i.quantity} — ${formatZar(i.priceZar * i.quantity)}</li>`)
       .join('');
 
     await Promise.all([
@@ -87,7 +213,7 @@ async function handler(req, res) {
             <p>Dear ${esc(contact.name)},</p>
             <p>Thank you for your order. I have received your payment notification for <strong>${esc(ref)}</strong> and will confirm it within 2 hours during studio hours (Mon–Sat, 9am–5pm SAST).</p>
             <ul style="padding-left:20px">${itemList}</ul>
-            <p><strong>Total: R${totalZar.toLocaleString()}</strong>${shippingZar > 0 ? ` (includes R${shippingZar.toLocaleString()} delivery)` : ' (free pickup)'}</p>
+            <p><strong>Total: ${formatZar(serverTotalZar)}</strong>${serverShippingZar > 0 ? ` (includes ${formatZar(serverShippingZar)} delivery)` : ' (free pickup)'}</p>
             <p>You will receive a follow-up email once your payment has been verified.</p>
             <p>Warm regards,<br/>Mapheane<br/><a href="mailto:hello@mapheane.art">hello@mapheane.art</a></p>
           </div>
@@ -98,7 +224,7 @@ async function handler(req, res) {
         from: FROM_ADDRESS,
         to: STUDIO_EMAIL,
         replyTo: contact.email,
-        subject: `New order: ${esc(ref)} — ${esc(paymentMethod.toUpperCase())} — R${totalZar.toLocaleString()}`,
+        subject: `New order: ${esc(ref)} — ${esc(paymentMethod.toUpperCase())} — ${formatZar(serverTotalZar)}`,
         html: `
           <div style="font-family:sans-serif;max-width:600px;color:#2D2A26">
             <h2 style="font-size:18px">New order: ${esc(ref)}</h2>
@@ -107,7 +233,7 @@ async function handler(req, res) {
             <p><strong>Payment:</strong> ${esc(paymentMethod.toUpperCase())}</p>
             <p><strong>Fulfilment:</strong> ${esc(fulfilment ?? '—')}${deliveryZone ? ` (${esc(deliveryZone)})` : ''}${pickupPoint ? ` — Pickup: ${esc(pickupPoint)}` : ''}</p>
             <ul style="padding-left:20px">${itemList}</ul>
-            <p><strong>Total: R${totalZar.toLocaleString()}</strong></p>
+            <p><strong>Total: ${formatZar(serverTotalZar)}</strong></p>
             ${proofPath ? `<p><strong>Proof of payment:</strong> ${esc(proofPath)}</p>` : ''}
           </div>
         `,

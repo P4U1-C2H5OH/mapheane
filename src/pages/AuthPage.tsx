@@ -39,20 +39,20 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
     e.preventDefault();
     reset();
     if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) { setError('Enter a valid email address'); return; }
-    if (mode !== 'reset' && password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (mode !== 'reset' && password.length < 6) { setError('Password must be at least 6 characters'); return; }
 
     setLoading(true);
     try {
       if (mode === 'login') {
-        const loggedInUser = await login(email, password);
+        const loggedInUser = await login(email.trim(), password);
         onNavigate(loggedInUser.role === 'admin' ? 'admin' : 'home');
       } else if (mode === 'signup') {
         if (!name.trim()) { setError('Name is required'); setLoading(false); return; }
-        await signup(name, email, password);
+        await signup(name, email.trim(), password);
         onNavigate('home');
       } else {
-        await resetPassword(email);
-        setSuccess(`Password reset link sent to ${email} — check your inbox.`);
+        await resetPassword(email.trim());
+        setSuccess(`Password reset link sent to ${email.trim()} — check your inbox.`);
       }
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong — please try again');
@@ -223,8 +223,8 @@ export function AuthPage({ onNavigate }: AuthPageProps) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {mode === 'signup' && password && password.length < 8 && (
-                <p className="text-xs text-muted/60 mt-1.5">At least 8 characters</p>
+              {mode === 'signup' && password && password.length < 6 && (
+                <p className="text-xs text-muted/60 mt-1.5">At least 6 characters</p>
               )}
             </div>
           )}

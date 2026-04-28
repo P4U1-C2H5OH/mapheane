@@ -5,6 +5,7 @@ import {
   Save, AlertCircle, ToggleLeft, ToggleRight, Loader,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { eurToZar, formatZar, roundMoney, zarToEur } from '../../lib/pricing';
 
 type FormMode = 'list' | 'add' | 'edit';
 type ImageTab = 'upload' | 'url';
@@ -13,8 +14,6 @@ const CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const MEDIUMS = ['Painting', 'Drawing', 'Clay Model'] as const;
-
-const ZAR_RATE = 18;
 
 const DIMENSION_PRESETS = [
   { label: 'A5',     value: '14.8 × 21 cm' },
@@ -100,7 +99,7 @@ function ArtworkForm({ initial, onSave, onCancel, isNew }: {
   onCancel: () => void;
   isNew: boolean;
 }) {
-  const zarFromEur = (eur: number) => eur > 0 ? String(Math.round(eur * ZAR_RATE)) : '';
+  const zarFromEur = (eur: number) => eur > 0 ? eurToZar(eur).toFixed(2) : '';
   const isDimensionPreset = (v: string) => DIMENSION_PRESETS.some(p => p.value === v && p.value !== 'custom');
 
   const [form, setForm] = useState({
@@ -135,7 +134,7 @@ function ArtworkForm({ initial, onSave, onCancel, isNew }: {
   };
 
   const dimensions = form.dimensionPreset === 'custom' ? form.customDimension : form.dimensionPreset;
-  const priceEur   = form.priceZar ? Number(form.priceZar) / ZAR_RATE : 0;
+  const priceEur   = form.priceZar ? zarToEur(Number(form.priceZar)) : 0;
   const heroImage  = form.images[0] ?? '';
 
   const uploadFiles = async (files: FileList | null) => {
@@ -300,12 +299,12 @@ function ArtworkForm({ initial, onSave, onCancel, isNew }: {
                   Price (ZAR)<span className="text-terracotta ml-0.5">*</span>
                 </label>
                 {priceEur > 0 && (
-                  <span className="text-xs text-muted/50">≈ €{priceEur.toLocaleString('en', { maximumFractionDigits: 0 })}</span>
+                  <span className="text-xs text-muted/50">≈ €{priceEur.toFixed(2)}</span>
                 )}
               </div>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">R</span>
-                <input type="number" value={form.priceZar} onChange={e => update('priceZar', e.target.value)}
+                <input type="number" step="0.01" value={form.priceZar} onChange={e => update('priceZar', e.target.value)}
                   placeholder="18 000"
                   className={`w-full bg-transparent border pl-7 pr-3 py-2 text-sm text-charcoal focus:outline-none transition-colors placeholder:text-charcoal/25 ${
                     errors.priceZar ? 'border-red-300' : 'border-charcoal/12 focus:border-terracotta/50'
@@ -514,7 +513,7 @@ export function GalleryManager() {
       .insert({
         title: data.title, technique: data.technique, dimensions: data.dimensions,
         medium: data.medium, year: data.year ?? null, description: data.description ?? '',
-        price_eur: data.price, status: data.status ?? 'Available',
+        price_eur: roundMoney(data.price ?? 0), status: data.status ?? 'Available',
         crop_position: data.cropPosition ?? '50% 50%',
         offset_class: data.offsetClass ?? 'mt-0',
         images: data.images ?? [],
@@ -533,7 +532,7 @@ export function GalleryManager() {
       .update({
         title: data.title, technique: data.technique, dimensions: data.dimensions,
         medium: data.medium, year: data.year ?? null, description: data.description ?? '',
-        price_eur: data.price, status: data.status ?? 'Available',
+        price_eur: roundMoney(data.price ?? 0), status: data.status ?? 'Available',
         crop_position: data.cropPosition ?? '50% 50%',
         offset_class: data.offsetClass ?? 'mt-0',
         images: data.images ?? [],
@@ -652,8 +651,8 @@ export function GalleryManager() {
                 </div>
 
                 <div className="hidden sm:block col-span-2">
-                  <p className="text-sm text-charcoal">R {(art.price * ZAR_RATE).toLocaleString()}</p>
-                  <p className="text-xs text-muted">€{art.price.toLocaleString('en', { maximumFractionDigits: 0 })}</p>
+                  <p className="text-sm text-charcoal">{formatZar(eurToZar(art.price))}</p>
+                  <p className="text-xs text-muted">€{art.price.toFixed(2)}</p>
                 </div>
 
                 <div className="hidden sm:flex col-span-2 items-center">

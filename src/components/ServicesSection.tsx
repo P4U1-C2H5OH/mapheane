@@ -10,9 +10,12 @@ interface ArtistMomentsSectionProps {
 
 export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) {
   const { ref, isVisible } = useScrollReveal(0.2);
-  const { moments } = useMoments();
+  const { moments, loading } = useMoments();
   const latestMoments = moments.slice(0, 3);
   const hasDbMoments = latestMoments.length > 0;
+  const momentCountLabel = loading && moments.length === 0
+    ? 'Loading Moments'
+    : `${moments.length} Moments`;
 
   return (
     <section
@@ -54,7 +57,7 @@ export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) 
               <div className="flex items-center gap-6 pt-4">
                 <div className="flex items-center gap-2">
                   <Heart className="w-5 h-5 text-terracotta" />
-                  <span className="text-sm text-muted">{moments.length} Moments</span>
+                  <span className="text-sm text-muted">{momentCountLabel}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-sage" />
@@ -88,8 +91,8 @@ export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) 
                     onClick={() => onNavigate?.('moments')}>
                     <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
                     <img
-                      src={latestMoments[0].media[0]?.url}
-                      alt={latestMoments[0].title}
+                      src={latestMoments[0].media?.[0]?.url || '/Image 5.png'}
+                      alt={latestMoments[0].media?.[0]?.alt || latestMoments[0].title}
                       draggable={false}
                       className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
                     />
@@ -106,8 +109,8 @@ export function ArtistMomentsSection({ onNavigate }: ArtistMomentsSectionProps) 
                       onClick={() => onNavigate?.('moments')}>
                       <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10 pointer-events-none" />
                       <img
-                        src={moment.media[0]?.url}
-                        alt={moment.title}
+                        src={moment.media?.[0]?.url || '/artportfolio.jpg'}
+                        alt={moment.media?.[0]?.alt || moment.title}
                         draggable={false}
                         className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
                       />

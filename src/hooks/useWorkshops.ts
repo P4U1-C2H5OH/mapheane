@@ -41,15 +41,26 @@ export function useWorkshops() {
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    supabase
-      .from('workshops')
-      .select('*')
-      .order('date', { ascending: true })
-      .then(({ data }) => {
-        if (data) setWorkshops(data.map(mapRow));
+    let active = true;
+
+    async function loadWorkshops() {
+      const { data } = await supabase
+        .from('workshops')
+        .select('*')
+        .order('date', { ascending: true });
+
+      if (!active) return;
+      if (data) setWorkshops(data.map(mapRow));
+      setLoading(false);
+    }
+
+    loadWorkshops().catch(() => {
+      if (active) {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }
+    });
+
+    return () => { active = false; };
   }, []);
 
   return { workshops, loading };

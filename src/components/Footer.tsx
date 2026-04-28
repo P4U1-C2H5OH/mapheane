@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Instagram, Facebook, Mail, ArrowRight, MapPin, ExternalLink } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { trackInteraction } from '../lib/interactions';
 
 interface FooterProps {
   onNavigate?: (page: any) => void;
@@ -21,6 +22,13 @@ export function Footer({ onNavigate }: FooterProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, trap }),
+      });
+      trackInteraction({
+        action: 'newsletter_signup',
+        targetType: 'newsletter',
+        targetTitle: 'Studio Letters',
+        source: 'footer',
+        metadata: { email },
       });
     } catch {
       // Silently succeed — newsletter signup failure shouldn't block the user

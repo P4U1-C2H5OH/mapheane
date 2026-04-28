@@ -130,9 +130,15 @@ export function MessagesManager() {
     setSending(true);
     setSendError('');
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Admin session expired');
+
       const res = await fetch('/api/reply', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           to:      selected.email,
           toName:  selected.name,

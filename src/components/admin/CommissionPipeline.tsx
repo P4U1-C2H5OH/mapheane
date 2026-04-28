@@ -5,6 +5,7 @@ import {
   ArrowRight, Check, User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { formatZar } from '../../lib/pricing';
 
 type Stage = 'inquiry' | 'quote' | 'contract' | 'deposit' | 'creation' | 'approval' | 'payment' | 'delivery' | 'followup';
 
@@ -100,7 +101,7 @@ function CommissionCard({ c, onSelect, isSelected }: {
       )}
 
       <div className="flex items-center justify-between pt-2 border-t border-charcoal/5">
-        <p className="font-sans text-sm text-charcoal">R {c.value.toLocaleString()}</p>
+        <p className="font-sans text-sm text-charcoal">{formatZar(c.value)}</p>
         <div className="flex items-center gap-2">
           {c.depositPaid
             ? <CheckCircle className="w-3.5 h-3.5 text-sage" />
@@ -193,12 +194,12 @@ function CommissionDetail({ c, onClose, onAdvance }: {
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-parchment/40 p-3 border border-charcoal/6">
             <p className="text-label text-muted mb-1">Commission value</p>
-            <p className="font-serif text-xl text-charcoal">R {c.value.toLocaleString()}</p>
+            <p className="font-serif text-xl text-charcoal">{formatZar(c.value)}</p>
           </div>
           <div className="bg-parchment/40 p-3 border border-charcoal/6">
             <p className="text-label text-muted mb-1">Deposit (50%)</p>
             <div className="flex items-center gap-2">
-              <p className="font-serif text-xl text-charcoal">R {(c.value * 0.5).toLocaleString()}</p>
+              <p className="font-serif text-xl text-charcoal">{formatZar(c.value * 0.5)}</p>
               {c.depositPaid
                 ? <CheckCircle className="w-4 h-4 text-sage" />
                 : <AlertCircle className="w-4 h-4 text-terracotta/60" />}

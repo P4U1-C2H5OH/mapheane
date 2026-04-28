@@ -26,7 +26,7 @@ interface DbEvent {
   tags: string[];
   ticketInfo?: { price: string; required: boolean; url?: string };
   contact?: { email?: string; phone?: string; website?: string };
-  artworks?: number[];
+  artworks?: string[];
 }
 
 function mapRow(row: Record<string, unknown>): DbEvent {
@@ -44,7 +44,7 @@ function mapRow(row: Record<string, unknown>): DbEvent {
     images:      Array.isArray(row.images)     ? (row.images     as string[])   : ['/artportfolio.jpg'],
     highlights:  Array.isArray(row.highlights) ? (row.highlights as string[])   : [],
     tags:        Array.isArray(row.tags)        ? (row.tags       as string[])   : [],
-    artworks:    Array.isArray(row.artworks)    ? (row.artworks   as number[])   : [],
+    artworks:    Array.isArray(row.artworks)    ? (row.artworks   as string[])   : [],
     ticketInfo:  (row.ticket_info  as DbEvent['ticketInfo']  | null) ?? undefined,
     contact:     (row.contact_data as DbEvent['contact']     | null) ?? undefined,
     location:    loc,
@@ -75,19 +75,30 @@ export function EventsManager() {
   const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('events')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
+    let active = true;
+
+    async function loadEvents() {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!active) return;
+
+      try {
         if (error) {
           console.error('Failed to load events:', error);
           setError('Unable to load events. Please refresh.');
         } else {
           setEvents((data ?? []).map(mapRow));
         }
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadEvents();
+    return () => { active = false; };
   }, []);
 
   const handleCreate = () => {

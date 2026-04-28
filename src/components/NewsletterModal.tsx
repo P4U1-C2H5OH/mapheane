@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight, Check, Mail } from 'lucide-react';
+import { trackInteraction } from '../lib/interactions';
 
 interface NewsletterModalProps {
   isOpen: boolean;
@@ -33,6 +34,13 @@ export function NewsletterModal({ isOpen, onClose }: NewsletterModalProps) {
         const data = await res.json();
         throw new Error(data.error || 'Signup failed');
       }
+      trackInteraction({
+        action: 'newsletter_signup',
+        targetType: 'newsletter',
+        targetTitle: 'Studio Letters',
+        source: 'newsletter_modal',
+        metadata: { email, name },
+      });
       setDone(true);
       setTimeout(() => { setDone(false); onClose(); }, 2800);
     } catch (err: any) {

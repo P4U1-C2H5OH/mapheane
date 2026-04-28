@@ -1,4 +1,5 @@
 const { Resend } = require('resend');
+const { createClient } = require('@supabase/supabase-js');
 const { esc } = require('./_lib/escape');
 const { contactLimit, getIp } = require('./_lib/ratelimit');
 
@@ -89,6 +90,31 @@ async function handler(req, res) {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
+    const supabase = createClient(
+      process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY
+    );
+
+    const { error: dbError } = await supabase.from('messages').insert({
+      name,
+      email,
+      type: type ?? 'General',
+      subject,
+      message,
+      status: 'unread',
+      phone: phone ?? null,
+      metadata: {
+        budget: budget ?? null,
+        medium: medium ?? null,
+        workshop: workshop ?? null,
+      },
+    });
+
+    if (dbError) {
+      console.error('Supabase message insert error:', dbError);
+      return res.status(500).json({ error: 'Failed to save message. Please try emailing hello@mapheane.art directly.' });
+    }
+
     const [r1, r2] = await Promise.all([
       resend.emails.send({
         from: FROM_ADDRESS,

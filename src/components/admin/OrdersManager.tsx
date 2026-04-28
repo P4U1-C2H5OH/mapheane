@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { formatZar } from '../../lib/pricing';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle, Clock, Truck, Package, X, Eye, Mail,
@@ -104,19 +105,30 @@ export function OrdersManager() {
 
     const order = orders.find(o => o.id === orderId);
     if (order?.email && ['verified', 'dispatched', 'delivered', 'cancelled'].includes(next)) {
-      fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: next,
-          customerEmail: order.email,
-          customerName: order.customer,
-          ref: order.ref,
-          items: order.items,
-          total: order.total,
-          tracking: next === 'dispatched' ? tracking : undefined,
-        }),
-      }).catch(err => console.error('notify error', err));
+      supabase.auth.getSession()
+        .then(({ data: { session } }) => {
+          if (!session?.access_token) throw new Error('Admin session expired');
+          return fetch('/api/notify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              status: next,
+              customerEmail: order.email,
+              customerName: order.customer,
+              ref: order.ref,
+              items: order.items,
+              total: order.total,
+              tracking: next === 'dispatched' ? tracking : undefined,
+            }),
+          });
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Notification failed');
+        })
+        .catch(err => console.error('notify error', err));
     }
 
     setOrders(prev => prev.map(o =>
@@ -200,7 +212,7 @@ export function OrdersManager() {
                         <StatusIcon className="w-3 h-3" />
                         {cfg.label}
                       </div>
-                      <p className="font-serif text-lg text-charcoal">R {order.total.toLocaleString()}</p>
+                      <p className="font-serif text-lg text-charcoal">{formatZar(order.total)}</p>
                       <p className="text-xs text-muted">{order.createdAt}</p>
                     </div>
                   </div>
@@ -280,12 +292,12 @@ export function OrdersManager() {
                   {selected.items.map(i => (
                     <div key={i.title} className="flex justify-between py-2 border-b border-charcoal/5">
                       <p className="text-sm text-charcoal">{i.title}</p>
-                      <p className="text-sm text-charcoal">R {i.price.toLocaleString()}</p>
+                      <p className="text-sm text-charcoal">{formatZar(i.price)}</p>
                     </div>
                   ))}
                   <div className="flex justify-between pt-2">
                     <p className="font-sans font-500 text-sm text-charcoal">Total</p>
-                    <p className="font-serif text-lg text-terracotta">R {selected.total.toLocaleString()}</p>
+                    <p className="font-serif text-lg text-terracotta">{formatZar(selected.total)}</p>
                   </div>
                 </div>
 

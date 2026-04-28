@@ -310,6 +310,93 @@ Art Paris offers a unique opportunity to see my work alongside international con
       website: 'https://artparis.com'
     },
     tags: ['art fair', 'paris', 'contemporary art', 'grand palais', 'spring 2024']
+  },
+  {
+    id: 6,
+    title: 'Yarn Experience',
+    subtitle: 'Crochet, community, and colour',
+    type: 'workshop',
+    status: 'upcoming',
+    description: `Yarn Experience is a hands-on celebration of textile craft, inviting participants to explore crochet as a form of storytelling and collaboration.
+
+The day includes a live demonstration by a visiting crochet artist, a guided session for attendees to make their own simple piece, and a conversation about the connections between fiber, memory, and everyday ritual. This event is designed for anyone curious about working with yarn, whether you are a beginner or have made with textiles before.
+
+Expect a warm, welcoming atmosphere where craft becomes a way of building community and sharing ideas.`,
+    theme: 'Discovering how simple stitches can become a language for community, colour, and daily comfort.',
+    location: {
+      venue: 'Maseru Cultural Hub',
+      address: '12 Main Street',
+      city: 'Maseru',
+      country: 'Lesotho'
+    },
+    schedule: {
+      startDate: '2024-06-20',
+      endDate: '2024-06-20',
+      hours: {
+        'Thursday': '11:00 AM - 4:00 PM'
+      }
+    },
+    featured: true,
+    images: ['/YarnExperience1.jpg', '/YarnExperience2.jpg'],
+    highlights: [
+      'Live crochet demonstration by a guest artist',
+      'Hands-on making session with guided support',
+      'Explore colour, texture and pattern through yarn',
+      'Conversation on craft, care, and community',
+      'Take home your finished textile sample'
+    ],
+    ticketInfo: {
+      price: 'M200 per person',
+      required: true,
+      url: 'https://event.example.com/yarn-experience'
+    },
+    contact: {
+      email: 'events@maseruculturalhub.org',
+      phone: '+266 22 312 345'
+    },
+    tags: ['workshop', 'textiles', 'crochet', 'community', 'Maseru']
+  },
+  {
+    id: 7,
+    title: 'Varsity Arts Club Launch',
+    subtitle: 'A new creative home for young makers',
+    type: 'talk',
+    status: 'upcoming',
+    description: `The Varsity Arts Club Launch marks the opening of a new arts collective for students, alumni, and young makers. This launch event brings together creative practice, mentorship, and community building in one energetic evening.
+
+Featured programming includes a short artist talk, an open studio preview, and a discussion on how to sustain creative practice alongside academic life. The club is designed as a platform for experimentation, peer support, and local collaboration, with regular drop-in sessions, skills shares, and exhibition opportunities planned for the year ahead.`,
+    theme: 'Creating a supportive space where emerging artists can connect, experiment, and grow together.',
+    location: {
+      venue: 'National University of Lesotho Creative Hub',
+      address: 'Campus Road',
+      city: 'Maseru',
+      country: 'Lesotho'
+    },
+    schedule: {
+      startDate: '2024-06-28',
+      endDate: '2024-06-28',
+      hours: {
+        'Friday': '5:00 PM - 8:00 PM'
+      }
+    },
+    featured: false,
+    images: ['/VarsityLaunch1.jpg', '/VarsityLaunch2.jpg'],
+    highlights: [
+      'Launch presentation and club introduction',
+      'Student art showcase and open studio tour',
+      'Q&A with local artists and creative leaders',
+      'Networking with peers and mentors',
+      'Membership sign-up and future programming preview'
+    ],
+    ticketInfo: {
+      price: 'Free entry',
+      required: false
+    },
+    contact: {
+      email: 'info@nuoartsclub.ac.ls',
+      phone: '+266 22 315 555'
+    },
+    tags: ['launch', 'students', 'community', 'arts club', 'Maseru']
   }
 ];
 

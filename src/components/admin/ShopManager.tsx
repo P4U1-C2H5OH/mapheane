@@ -8,8 +8,8 @@ import { ImageUpload } from './ImageUpload';
 import { supabase } from '../../lib/supabase';
 import { useEditions, Edition, mapEditionRow } from '../../hooks/useEditions';
 import { useArtworks } from '../../hooks/useArtworks';
+import { formatZar, roundMoney, zarToEur } from '../../lib/pricing';
 
-const ZAR_RATE = 18;
 const EDITION_TYPES = ['Limited', 'Open', 'Artist Proof'] as const;
 const PAPER_PRESETS = [
   'Hahnemühle German Etching 310gsm',
@@ -94,7 +94,7 @@ function EditionForm({ initial, isNew, artworks, onSave, onCancel }: {
     customPaper: isPaperPreset(initial.paper ?? '') ? '' : (initial.paper ?? ''),
     editionSize: initial.editionSize != null ? String(initial.editionSize) : '',
     editionSold: String(initial.editionSold ?? 0),
-    priceZar:    initial.price ? String(initial.price.zar) : '',
+    priceZar:    initial.price ? initial.price.zar.toFixed(2) : '',
     imageUrl:    initial.image ?? '',
     available:   initial.available ?? true,
     description: initial.description ?? '',
@@ -293,7 +293,7 @@ function EditionForm({ initial, isNew, artworks, onSave, onCancel }: {
             </label>
             <div className="relative">
               <span className="absolute left-3 top-2.5 text-sm text-muted">R</span>
-              <input type="number" value={form.priceZar} onChange={e => update('priceZar', e.target.value)}
+              <input type="number" step="0.01" value={form.priceZar} onChange={e => update('priceZar', e.target.value)}
                 placeholder="4500"
                 className={`w-full bg-transparent border pl-7 pr-3 py-2 text-sm text-charcoal focus:outline-none transition-colors ${
                   errors.priceZar ? 'border-red-300' : 'border-charcoal/12 focus:border-terracotta/50'
@@ -302,7 +302,7 @@ function EditionForm({ initial, isNew, artworks, onSave, onCancel }: {
             {errors.priceZar && <p className="text-xs text-red-400 mt-1">{errors.priceZar}</p>}
             {form.priceZar && !isNaN(Number(form.priceZar)) && Number(form.priceZar) > 0 && (
               <p className="text-xs text-muted/60 mt-1">
-                ≈ €{(Number(form.priceZar) / ZAR_RATE).toFixed(0)} EUR
+                ≈ €{zarToEur(Number(form.priceZar)).toFixed(2)} EUR
               </p>
             )}
           </div>
@@ -405,7 +405,8 @@ export function ShopManager() {
   );
 
   const handleAdd = async (form: EditionForm) => {
-    const priceEur = Number(form.priceZar) / ZAR_RATE;
+    const priceZar = roundMoney(Number(form.priceZar));
+    const priceEur = zarToEur(priceZar);
     const { data: row, error } = await supabase
       .from('editions')
       .insert({
@@ -419,7 +420,7 @@ export function ShopManager() {
         edition_size: form.editionSize ? Number(form.editionSize) : null,
         edition_sold: Number(form.editionSold) || 0,
         price_eur:    priceEur,
-        price_zar:    Number(form.priceZar),
+        price_zar:    priceZar,
         image_url:    form.imageUrl || null,
         available:    form.available,
         description:  form.description,
@@ -432,7 +433,8 @@ export function ShopManager() {
 
   const handleEdit = async (form: EditionForm) => {
     if (!editTarget) return;
-    const priceEur = Number(form.priceZar) / ZAR_RATE;
+    const priceZar = roundMoney(Number(form.priceZar));
+    const priceEur = zarToEur(priceZar);
     const { error } = await supabase
       .from('editions')
       .update({
@@ -446,7 +448,7 @@ export function ShopManager() {
         edition_size: form.editionSize ? Number(form.editionSize) : null,
         edition_sold: Number(form.editionSold) || 0,
         price_eur:    priceEur,
-        price_zar:    Number(form.priceZar),
+        price_zar:    priceZar,
         image_url:    form.imageUrl || null,
         available:    form.available,
         description:  form.description,
@@ -464,7 +466,7 @@ export function ShopManager() {
       paper:       form.paperPreset === 'Custom' ? form.customPaper : form.paperPreset,
       editionSize: form.editionSize ? Number(form.editionSize) : null,
       editionSold: Number(form.editionSold) || 0,
-      price:       { eur: priceEur, zar: Number(form.priceZar) },
+      price:       { eur: priceEur, zar: priceZar },
       image:       form.imageUrl,
       available:   form.available,
       description: form.description,
@@ -609,8 +611,8 @@ export function ShopManager() {
 
                   {/* Price */}
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-sans text-charcoal">R{edition.price.zar.toLocaleString()}</p>
-                    <p className="text-xs text-muted">€{edition.price.eur.toFixed(0)}</p>
+                    <p className="text-sm font-sans text-charcoal">{formatZar(edition.price.zar)}</p>
+                    <p className="text-xs text-muted">€{edition.price.eur.toFixed(2)}</p>
                   </div>
 
                   {/* Available toggle */}

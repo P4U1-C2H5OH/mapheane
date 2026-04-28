@@ -11,6 +11,7 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { QuickViewModal } from '../components/QuickViewModal';
+import { trackInteraction } from '../lib/interactions';
 
 interface GalleryPageProps {
   onNavigate: (page: any) => void;
@@ -21,7 +22,7 @@ type MediumFilter = 'All' | 'Painting' | 'Drawing' | 'Clay Model';
 type AvailFilter  = 'All' | 'Available' | 'Sold';
 
 export function GalleryPage({ onNavigate, onSelectArtwork }: GalleryPageProps) {
-  const { artworks } = useArtworks();
+  const { artworks, loading, error } = useArtworks();
   const [medium, setMedium]         = useState<MediumFilter>('All');
   const [avail,  setAvail]          = useState<AvailFilter>('All');
   const [quickView, setQuickView]   = useState<Artwork | null>(null);
@@ -147,8 +148,7 @@ export function GalleryPage({ onNavigate, onSelectArtwork }: GalleryPageProps) {
 
           {/* Results count */}
           <p className="text-xs font-sans uppercase tracking-widest text-muted mb-10">
-            {filtered.length} work{filtered.length !== 1 ? 's' : ''}
-            {activeFilters > 0 ? ' matching filters' : ''}
+            {loading ? 'Loading collection' : `${filtered.length} work${filtered.length !== 1 ? 's' : ''}${activeFilters > 0 ? ' matching filters' : ''}`}
           </p>
 
           {/* Grid */}
@@ -167,11 +167,27 @@ export function GalleryPage({ onNavigate, onSelectArtwork }: GalleryPageProps) {
                   artwork={artwork}
                   index={index}
                   onViewFull={() => onSelectArtwork(artwork.id)}
-                  onQuickView={() => setQuickView(artwork)}
+                  onQuickView={() => {
+                    trackInteraction({
+                      action: 'quick_view',
+                      targetType: 'artwork',
+                      targetId: artwork.id,
+                      targetTitle: artwork.title,
+                      source: 'gallery_page',
+                    });
+                    setQuickView(artwork);
+                  }}
                   isWishlisted={isWishlisted(artwork.id)}
                   onWishlist={() => {
                     const adding = !isWishlisted(artwork.id);
                     toggleWishlist(artwork.id);
+                    trackInteraction({
+                      action: adding ? 'wishlist_add' : 'wishlist_remove',
+                      targetType: 'artwork',
+                      targetId: artwork.id,
+                      targetTitle: artwork.title,
+                      source: 'gallery_page',
+                    });
                     if (adding) wishlisted(`"${artwork.title}" saved`);
                   }}
                 />
@@ -179,7 +195,18 @@ export function GalleryPage({ onNavigate, onSelectArtwork }: GalleryPageProps) {
             </motion.div>
           </AnimatePresence>
 
-          {filtered.length === 0 && (
+          {error && artworks.length === 0 && (
+            <div className="text-center py-24">
+              <p className="font-serif italic text-3xl text-charcoal/35 mb-4">The collection could not load.</p>
+              <p className="text-sm text-muted mb-6">Please refresh the page. If it continues, the studio data connection needs attention.</p>
+              <button onClick={() => window.location.reload()}
+                className="text-xs font-sans uppercase tracking-widest text-terracotta hover:text-terracottaDark transition-colors">
+                Reload gallery
+              </button>
+            </div>
+          )}
+
+          {!error && filtered.length === 0 && (
             <div className="text-center py-24">
               <p className="font-serif italic text-3xl text-charcoal/30 mb-4">No works match these filters.</p>
               <button onClick={() => { setMedium('All'); setAvail('All'); }}
@@ -224,6 +251,14 @@ function GalleryCard({
     if (!existing.includes(notifyEmail)) {
       localStorage.setItem(key, JSON.stringify([...existing, notifyEmail]));
     }
+    trackInteraction({
+      action: 'notify_request',
+      targetType: 'artwork',
+      targetId: artwork.id,
+      targetTitle: artwork.title,
+      source: 'gallery_page',
+      metadata: { email: notifyEmail },
+    });
     setNotifySent(true);
     setNotifyEmail('');
     setNotifyOpen(false);

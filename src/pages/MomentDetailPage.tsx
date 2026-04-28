@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Calendar, MapPin, Tag, Share2, Heart, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMoments } from '../hooks/useMoments';
-import { momentTypeLabels, MomentType } from '../data/moments';
+import { momentTypeLabels, MomentType, MomentMedia } from '../data/moments';
+import { trackInteraction } from '../lib/interactions';
 
 interface MomentDetailPageProps {
   momentId: string;
@@ -11,8 +12,11 @@ interface MomentDetailPageProps {
 }
 
 export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: MomentDetailPageProps) {
-  const { moments } = useMoments();
+  const { moments, loading, error } = useMoments();
   const moment = moments.find(m => m.id === momentId);
+  const momentViewId = moment?.id;
+  const momentViewTitle = moment?.title;
+  const momentViewType = moment?.type;
   const [isLiked, setIsLiked] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -20,6 +24,42 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [momentId]);
+
+  useEffect(() => {
+    if (!momentViewId || !momentViewTitle) return;
+    trackInteraction({
+      action: 'moment_view',
+      targetType: 'moment',
+      targetId: momentViewId,
+      targetTitle: momentViewTitle,
+      source: 'moment_detail',
+      metadata: { type: momentViewType },
+    });
+  }, [momentViewId, momentViewTitle, momentViewType]);
+
+  if (loading && !moment) {
+    return (
+      <div className="min-h-screen pt-32 pb-20 px-6 flex items-center justify-center">
+        <p className="text-muted text-lg">Loading moment...</p>
+      </div>
+    );
+  }
+
+  if (error && !moment) {
+    return (
+      <div className="min-h-screen pt-32 pb-20 px-6 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="font-serif text-4xl text-charcoal mb-4">Unable to Load Moment</h1>
+          <button
+            onClick={() => onNavigate('moments')}
+            className="text-terracotta hover:underline"
+          >
+            Return to Moments
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!moment) {
     return (
@@ -37,6 +77,10 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
     );
   }
 
+  const mediaItems: MomentMedia[] = moment.media.length > 0
+    ? moment.media
+    : [{ type: 'image' as const, url: '/artportfolio.jpg', alt: moment.title }];
+
   const handleShare = async () => {
     const url = window.location.href;
     if (navigator.share) {
@@ -44,6 +88,13 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
     } else {
       try { await navigator.clipboard.writeText(url); } catch {}
     }
+    trackInteraction({
+      action: 'share',
+      targetType: 'moment',
+      targetId: moment.id,
+      targetTitle: moment.title,
+      source: 'moment_detail',
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -78,11 +129,11 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
   };
 
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % moment.media.length);
+    setCurrentImageIndex((prev) => (prev + 1) % mediaItems.length);
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + moment.media.length) % moment.media.length);
+    setCurrentImageIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
   };
 
   return (
@@ -150,7 +201,17 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
             {/* Actions */}
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setIsLiked(!isLiked)}
+                onClick={() => {
+                  const next = !isLiked;
+                  setIsLiked(next);
+                  trackInteraction({
+                    action: next ? 'moment_like' : 'moment_unlike',
+                    targetType: 'moment',
+                    targetId: moment.id,
+                    targetTitle: moment.title,
+                    source: 'moment_detail',
+                  });
+                }}
                 className="flex items-center gap-2 px-4 py-2 border border-charcoal/20 hover:border-terracotta transition-colors group"
               >
                 <Heart 
@@ -174,15 +235,15 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
             transition={{ delay: 0.4, duration: 0.8 }}
             className="mb-12"
           >
-            {moment.media?.[0]?.type === 'video' ? (
+            {mediaItems[0].type === 'video' ? (
               <div className="relative w-full aspect-[16/10] overflow-hidden bg-charcoal">
                 <video
-                  src={moment.media[0].url}
-                  poster={moment.media[0].thumbnail}
+                  src={mediaItems[0].url}
+                  poster={mediaItems[0].thumbnail}
                   controls
                   playsInline
                   className="w-full h-full object-contain"
-                  aria-label={moment.media[0].alt}
+                  aria-label={mediaItems[0].alt}
                 />
               </div>
             ) : (
@@ -192,15 +253,15 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
               >
                 <div className="absolute inset-0 bg-charcoal/0 group-hover:bg-charcoal/10 transition-colors duration-500 z-10" />
                 <img
-                  src={moment.media[0].url}
-                  alt={moment.media[0].alt}
+                  src={mediaItems[0].url}
+                  alt={mediaItems[0].alt}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
               </div>
             )}
-            {moment.media[0].caption && (
+            {mediaItems[0].caption && (
               <p className="text-sm text-muted italic mt-3 text-center">
-                {moment.media[0].caption}
+                {mediaItems[0].caption}
               </p>
             )}
           </motion.div>
@@ -222,11 +283,11 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
           </motion.article>
 
           {/* Additional Media Gallery */}
-          {moment.media.length > 1 && (
+          {mediaItems.length > 1 && (
             <div className="mb-16">
               <h3 className="font-serif text-2xl text-charcoal mb-6">More from this moment</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {moment.media.slice(1).map((media, index) => (
+                {mediaItems.slice(1).map((media, index) => (
                   <div
                     key={index}
                     onClick={() => openLightbox(index + 1)}
@@ -293,8 +354,8 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
                   >
                     <div className="relative aspect-[4/5] overflow-hidden mb-3">
                       <img
-                        src={related.media[0].url}
-                        alt={related.media[0].alt}
+                        src={related.media?.[0]?.url || '/artportfolio.jpg'}
+                        alt={related.media?.[0]?.alt || related.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     </div>
@@ -327,7 +388,7 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
               <X className="w-8 h-8" />
             </button>
 
-            {moment.media.length > 1 && (
+            {mediaItems.length > 1 && (
               <>
                 <button
                   onClick={(e) => {
@@ -354,32 +415,32 @@ export function MomentDetailPage({ momentId, onNavigate, onSelectMoment }: Momen
               className="max-w-6xl max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
-              {moment.media[currentImageIndex].type === 'video' ? (
+              {mediaItems[currentImageIndex].type === 'video' ? (
                 <video
-                  src={moment.media[currentImageIndex].url}
-                  poster={moment.media[currentImageIndex].thumbnail}
+                  src={mediaItems[currentImageIndex].url}
+                  poster={mediaItems[currentImageIndex].thumbnail}
                   controls
                   autoPlay
                   playsInline
                   className="w-full max-h-[80vh] object-contain"
-                  aria-label={moment.media[currentImageIndex].alt}
+                  aria-label={mediaItems[currentImageIndex].alt}
                 />
               ) : (
                 <img
-                  src={moment.media[currentImageIndex].url}
-                  alt={moment.media[currentImageIndex].alt}
+                  src={mediaItems[currentImageIndex].url}
+                  alt={mediaItems[currentImageIndex].alt}
                   className="w-full h-full object-contain"
                 />
               )}
-              {moment.media[currentImageIndex].caption && (
+              {mediaItems[currentImageIndex].caption && (
                 <p className="text-white text-center mt-4 text-sm">
-                  {moment.media[currentImageIndex].caption}
+                  {mediaItems[currentImageIndex].caption}
                 </p>
               )}
             </div>
 
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-sm">
-              {currentImageIndex + 1} / {moment.media.length}
+              {currentImageIndex + 1} / {mediaItems.length}
             </div>
           </motion.div>
         )}

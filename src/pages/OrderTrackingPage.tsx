@@ -5,6 +5,7 @@ import {
   Clock, AlertCircle, MapPin, Mail, ArrowRight, X
 } from 'lucide-react';
 import { useSEO } from '../hooks/useSEO';
+import { formatZar } from '../lib/pricing';
 
 interface Props {
   onNavigate: (page: any) => void;
@@ -223,7 +224,7 @@ export function OrderTrackingPage({ onNavigate, onViewCertificate }: Props) {
                   ))}
                   <div className="flex justify-between pt-2">
                     <span className="text-muted text-sm">Total paid</span>
-                    <span className="font-serif text-lg text-charcoal">R {result.total.toLocaleString()}</span>
+                    <span className="font-serif text-lg text-charcoal">{formatZar(result.total)}</span>
                   </div>
                 </div>
               </div>

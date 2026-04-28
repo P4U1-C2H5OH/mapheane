@@ -10,6 +10,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { supabase } from '../lib/supabase';
+import { eurToZar, formatZar, zarToEur } from '../lib/pricing';
 
 interface CheckoutPageProps {
   onNavigate: (page: any) => void;
@@ -189,7 +190,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const zone        = DELIVERY_ZONES.find(z => z.id === deliveryZone)!;
   const shippingCost = fulfilment === 'pickup' ? 0 : zone.price;
   const subtotalEUR = getCartTotal(); // cart prices are in EUR
-  const shippingEUR = shippingCost / 18; // shipping zones defined in ZAR
+  const shippingEUR = zarToEur(shippingCost); // shipping zones defined in ZAR
   const totalEUR    = subtotalEUR + shippingEUR;
   const selectedPickup = PICKUP_POINTS.find(p => p.id === pickupPoint)!;
   const selectedPayment = PAYMENT_METHODS.find(p => p.id === paymentMethod);
@@ -273,11 +274,14 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
           paymentMethod,
           proofPath,
           cartItems: cartItems.map(i => ({
+            artwork: i.artwork,
+            edition: i.edition ?? null,
             title: i.artwork.title,
-            priceZar: Math.round(i.artwork.price * 18),
+            medium: i.artwork.medium,
+            priceZar: eurToZar(i.edition?.price.eur ?? i.artwork.price),
             quantity: i.quantity,
           })),
-          totalZar: Math.round(totalEUR * 18),
+          totalZar: eurToZar(totalEUR),
           shippingZar: shippingCost,
         }),
       });
@@ -313,7 +317,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             <div className="flex-1 min-w-0">
               <p className="text-xs font-sans font-500 text-charcoal truncate">{item.artwork.title}</p>
               {item.quantity > 1 && <p className="text-xs text-muted">× {item.quantity}</p>}
-              <p className="text-sm text-charcoal mt-0.5">{fmt(item.artwork.price * item.quantity)}</p>
+              <p className="text-sm text-charcoal mt-0.5">{fmt((item.edition?.price.eur ?? item.artwork.price) * item.quantity)}</p>
             </div>
           </div>
         ))}
@@ -330,7 +334,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             {fulfilment === 'pickup' ? 'Pickup' : `Delivery — ${zone.label}`}
           </span>
           <span className={fulfilment === 'pickup' ? 'text-sage font-sans font-500' : 'text-charcoal'}>
-            {fulfilment === 'pickup' ? 'Free' : `R ${shippingCost.toLocaleString()}`}
+            {fulfilment === 'pickup' ? 'Free' : formatZar(shippingCost)}
           </span>
         </div>
       </div>
@@ -754,7 +758,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                             <div className="flex items-center justify-between">
                               <div>
                                 <p className="text-label uppercase tracking-widest text-terracotta/70 mb-1">Amount to Pay</p>
-                                <p className="font-serif text-3xl text-terracotta">R {Math.round(totalEUR * 18).toLocaleString()} <span className="text-base font-sans font-400">ZAR</span></p>
+                                <p className="font-serif text-3xl text-terracotta">{formatZar(eurToZar(totalEUR), true)}</p>
                               </div>
                               <div className="text-right">
                                 <p className="text-label uppercase tracking-widest text-muted mb-1">Reference</p>

@@ -25,6 +25,7 @@ import { GalleryReadiness }   from '../components/admin/GalleryReadiness';
 import { WorkshopsManager }   from '../components/admin/WorkshopsManager';
 import { AdminSettings }       from '../components/admin/AdminSettings';
 import { ShopManager }        from '../components/admin/ShopManager';
+import { EngagementSignals }  from '../components/admin/EngagementSignals';
 
 interface AdminDashboardProps {
   onNavigate: (page: any) => void;
@@ -33,7 +34,7 @@ interface AdminDashboardProps {
 export type AdminView =
   | 'command' | 'gallery' | 'shop' | 'moments' | 'events'
   | 'orders' | 'messages' | 'collectors' | 'commissions'
-  | 'analytics' | 'marketing' | 'readiness' | 'workshops'
+  | 'analytics' | 'engagement' | 'marketing' | 'readiness' | 'workshops'
   | 'settings';
 
 interface NavItem {
@@ -47,6 +48,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { id: 'command',     label: 'Command Centre', icon: LayoutDashboard, group: 'main' },
   { id: 'analytics',  label: 'Revenue',         icon: BarChart3,       group: 'main' },
+  { id: 'engagement', label: 'Engagement',      icon: Zap,             group: 'main' },
   { id: 'collectors', label: 'Collectors',      icon: Users,           group: 'main', badge: 'CRM' },
   { id: 'commissions',label: 'Commissions',     icon: GitBranch,       group: 'main' },
   { id: 'gallery',    label: 'Gallery',         icon: Image,           group: 'studio' },
@@ -71,6 +73,7 @@ function renderView(view: AdminView, onNav: (v: AdminView) => void) {
   switch (view) {
     case 'command':      return <CommandCenter onNavigate={onNav} />;
     case 'analytics':   return <RevenueAnalytics />;
+    case 'engagement':  return <EngagementSignals />;
     case 'collectors':  return <CollectorCRM />;
     case 'commissions': return <CommissionPipeline />;
     case 'gallery':     return <GalleryManager />;
@@ -95,7 +98,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [mobileOpen, setMobile]   = useState(false);
   const [isMobile, setIsMobile]   = useState(false);
   const [liveBadges, setLiveBadges] = useState({ orders: 0, messages: 0, commissions: 0 });
-  const { user, logout }          = useAuth();
+  const { user, logout, authLoading } = useAuth();
 
   useEffect(() => {
     const check = () => {
@@ -109,6 +112,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   }, []);
 
   useEffect(() => {
+    if (authLoading || user?.role !== 'admin') return;
+
     async function fetchBadges() {
       const [orders, messages, commissions] = await Promise.all([
         supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -123,7 +128,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       });
     }
     fetchBadges();
-  }, []);
+  }, [authLoading, user?.role]);
 
   const handleNav = (v: AdminView) => {
     setView(v);
@@ -137,6 +142,42 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
   const activeItem = NAV.find(n => n.id === view);
   const groups = ['main', 'studio', 'growth'] as const;
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-5">
+        <div className="w-8 h-8 border border-charcoal/20 border-t-terracotta rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (user?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-5">
+        <div className="max-w-md text-center">
+          <p className="text-label uppercase tracking-[0.25em] text-terracotta mb-3">Studio Admin</p>
+          <h1 className="font-serif text-3xl italic text-charcoal mb-4">Sign in as an admin.</h1>
+          <p className="text-sm text-muted leading-relaxed mb-8">
+            This area is restricted to the studio admin account.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => onNavigate('auth')}
+              className="w-full sm:w-auto px-6 py-3 bg-terracotta text-background text-xs font-sans uppercase tracking-widest hover:bg-terracottaDark transition-colors"
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => onNavigate('home')}
+              className="w-full sm:w-auto px-6 py-3 border border-charcoal/12 text-charcoal text-xs font-sans uppercase tracking-widest hover:border-charcoal/30 transition-colors"
+            >
+              Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const Sidebar = ({ expanded }: { expanded: boolean }) => (
     <aside

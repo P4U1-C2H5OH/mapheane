@@ -27,6 +27,62 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    promise
+      .then(value => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(error => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+async function passwordGrant(email: string, password: string) {
+  const url = import.meta.env.VITE_SUPABASE_URL as string;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: email.trim(), password }),
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.msg ?? data.error_description ?? data.error ?? 'Login failed');
+    }
+    if (!data.access_token || !data.refresh_token || !data.user) {
+      throw new Error('Login response was incomplete. Please try again.');
+    }
+
+    return data as {
+      access_token: string;
+      refresh_token: string;
+      user: { id: string; email?: string; user_metadata?: Record<string, any>; app_metadata?: Record<string, any> };
+    };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Login timed out while contacting Supabase. Please check your connection and try again.');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 /** Map a Supabase session + profiles row to our internal User shape. */
 function mapUser(
   session: { user: { id: string; email?: string; user_metadata?: Record<string, any>; app_metadata?: Record<string, any> } },
@@ -52,13 +108,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /** Fetch the profiles row for a given Supabase user id and return it. */
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('name, role').eq('id', userId).single();
+    const { data, error } = await supabase.from('profiles').select('name, role').eq('id', userId).maybeSingle();
+    if (error) console.error('Profile load error:', error);
     return data;
   };
 
   useEffect(() => {
-    // Safety net: if Supabase hangs (stale session, network issue), unblock after 2s
-    const timeout = setTimeout(() => setLoading(false), 2000);
+    // Safety net: if Supabase hangs (stale session, network issue), unblock the public app.
+    const timeout = setTimeout(() => setLoading(false), 6000);
 
     // Restore session on mount — gracefully handle missing/placeholder Supabase credentials
     supabase.auth.getSession()
@@ -79,13 +136,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes (login, logout, token refresh)
     let subscription: { unsubscribe: () => void } = { unsubscribe: () => {} };
     try {
-      const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session) {
-          const profile = await fetchProfile(session.user.id);
-          setUser(mapUser(session, profile));
-        } else {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (!session) {
           setUser(null);
+          return;
         }
+
+        // Keep Supabase's auth callback synchronous; do profile work after
+        // the session update has finished to avoid auth lock stalls.
+        setUser(mapUser(session, null));
+        window.setTimeout(async () => {
+          const profile = await fetchProfile(session.user.id);
+          setUser(current => current?.id === session.user.id ? mapUser(session, profile) : current);
+        }, 0);
       });
       subscription = data.subscription;
     } catch {
@@ -99,25 +162,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {
-    // Add timeout to prevent hanging
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Login timed out — check your connection and try again')), 10000)
+    const grant = await passwordGrant(email, password);
+
+    const { data, error } = await withTimeout(
+      supabase.auth.setSession({
+        access_token: grant.access_token,
+        refresh_token: grant.refresh_token,
+      }),
+      10000,
+      'Login succeeded, but saving the session timed out. Please refresh and try again.'
     );
 
-    const loginPromise = supabase.auth.signInWithPassword({ email, password })
-      .then(({ data, error }) => {
-        if (error) throw new Error(error.message);
-        if (!data.session) {
-          throw new Error('Email not confirmed — please check your inbox for a verification link, then try again.');
-        }
-        return fetchProfile(data.session.user.id).then(profile => {
-          const mappedUser = mapUser(data.session, profile);
-          setUser(mappedUser);
-          return mappedUser;
-        });
-      });
+    if (error) throw new Error(error.message);
+    const session = data.session ?? {
+      access_token: grant.access_token,
+      refresh_token: grant.refresh_token,
+      user: grant.user,
+    };
+    if (!session) {
+      throw new Error('Email not confirmed — please check your inbox for a verification link, then try again.');
+    }
 
-    return Promise.race([loginPromise, timeout]);
+    const profile = await withTimeout(
+      fetchProfile(session.user.id),
+      8000,
+      'Profile lookup timed out'
+    ).catch(err => {
+      console.warn('Profile lookup after login failed:', err);
+      return null;
+    });
+
+    const mappedUser = mapUser(session, profile);
+    setUser(mappedUser);
+    return mappedUser;
   };
 
   const loginWithGoogle = async () => {
@@ -143,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = async (name: string, email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: { data: { name } },
     });

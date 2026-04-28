@@ -289,6 +289,100 @@ Tomorrow, back to Paris. But I'm bringing this sunset with me.`,
     ],
     tags: ['travel', 'light', 'inspiration', 'landscape'],
     mood: 'Awestruck'
+  },
+  {
+    id: 9,
+    title: 'Highlands Walk with a Sketchbook',
+    date: '2024-06-12',
+    type: 'travel',
+    location: 'Maletsunyane, Lesotho',
+    excerpt: 'Hiking the Lesotho mountains became a way of painting with my feet and my eyes.',
+    content: `I hiked above 3,000 metres with only a small sketchbook, my favorite pencil, and a hunger for light. The highlands here are honest: sharp ridges, thin air, and a silence that asks you to slow down. Every step became part of the drawing, every breath a color note.
+
+At the summit I drew the edge of the escarpment as the sun cut across basalt and shadow. The hike was not just exercise; it was a reset. I returned with highland grass in my hair, the rhythm of the path in my bones, and a new palette for painting.
+
+This moment does not fit into one canvas. It became a vocabulary of altitude, wind, and quiet determination.`,
+    media: [
+      {
+        type: 'image',
+        url: '/maletsunyane.jpg',
+        alt: 'Morning view from the highlands',
+        caption: 'Sunrise over the plateau'
+      },
+      {
+        type: 'image',
+        url: '/lesothowinter.jpg',
+        alt: 'Sketchbook resting on a rock',
+        caption: 'Field notes at 3,000 metres'
+      },
+      {
+        type: 'gallery',
+        url: '/Image 4 - Purple Figs.png',
+        alt: 'Color study and landscape notes',
+        caption: 'Color notes from the hike'
+      }
+    ],
+    tags: ['travel', 'mountains', 'Lesotho', 'hiking', 'inspiration'],
+    mood: 'Invigorated',
+    featured: true
+  },
+  {
+    id: 10,
+    title: 'Molding Lighter Casings for Friends',
+    date: '2024-06-05',
+    type: 'process',
+    location: 'Studio',
+    excerpt: 'Making small ceramic casings for friends shifted the practice from solo work to shared care.',
+    content: `Today I made a batch of lighter casings for close friends, each one slightly different, each one made with someone else in mind. Working for someone else forces you to pay attention to gestures that live outside your own rhythm.
+
+I chose clay that felt warm and thick in my hands, then drew each shape slowly: one for a poet, one for a musician, one for a friend who loves the mountains. These are not artworks that need to be hung. They are small objects meant to be held, to become part of someone else's daily life.
+
+The act of gifting has its own form of composition. The way the glaze catches light, the comfort of a rounded edge, the weight in your palm. This work felt quiet, generous, and strangely powerful.`,
+    media: [
+      {
+        type: 'image',
+        url: '/Image 5.png',
+        alt: 'Ceramic lighter casings in progress',
+        caption: 'Small forms for friends'
+      },
+      {
+        type: 'image',
+        url: '/Face.jpg',
+        alt: 'Hands shaping clay',
+        caption: 'Making with intention'
+      }
+    ],
+    tags: ['clay', 'gifts', 'process', 'friends', 'functional art'],
+    mood: 'Warm'
+  },
+  {
+    id: 11,
+    title: 'Yarn Experience',
+    date: '2024-05-18',
+    type: 'inspiration',
+    location: 'Maseru Cultural Hub',
+    excerpt: 'At the Yarn Experience event, crochet became a language for connection, community, and slow craft.',
+    content: `The Yarn Experience was a reminder that making is not always about speed. It is about rhythm, patience, and the texture of conversation. I spent the afternoon with a crochet artist whose work is both domestic and radical—blankets, tapestries, wearable sculptures.
+
+She spoke about repetition as meditation and about how each stitch is a story. Watching her hands move through thread felt surprisingly similar to watching glaze move across clay. Both are acts of care, both are gestures that can shape a life.
+
+I came home with a small sample swatch, new questions for my own work, and the sense that art can live in the same family as craft, connection, and comfort.`,
+    media: [
+      {
+        type: 'image',
+        url: '/Image 7 - Stylized Portrait b-white.png',
+        alt: 'Yarn event table with crochet samples',
+        caption: 'Threads of the Yarn Experience'
+      },
+      {
+        type: 'image',
+        url: '/Image 3 no-bg.png',
+        alt: 'Hands working with yarn',
+        caption: 'Slow craft in motion'
+      }
+    ],
+    tags: ['craft', 'textiles', 'community', 'event', 'inspiration'],
+    mood: 'Connected'
   }
 ];
 

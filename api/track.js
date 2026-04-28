@@ -70,7 +70,10 @@ async function handler(req, res) {
     ref:              row.ref,
     status:           row.status,
     customer:         row.customer?.name ?? '—',
-    items:            (row.cart_items ?? []).map(i => ({ title: i.title, medium: '' })),
+    items:            (row.cart_items ?? []).map(i => ({
+      title: i.edition ? `${i.edition.title} · ${i.edition.size}` : i.title,
+      medium: i.artwork?.medium ?? i.medium ?? '',
+    })),
     total:            row.total_zar,
     fulfilment:       row.fulfilment,
     pickupPoint:      row.pickup_point ?? undefined,
