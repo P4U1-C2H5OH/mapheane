@@ -146,135 +146,145 @@ async function normalizeCartItems(supabase, cartItems) {
 }
 
 async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const origin = req.headers.origin;
-  if (origin && origin !== ALLOWED_ORIGIN && !origin.includes('localhost')) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  // Rate limit per IP
-  const ip = getIp(req);
-  const { success } = await ordersLimit.limit(ip);
-  if (!success) {
-    res.setHeader('Retry-After', '3600');
-    return res.status(429).json({ error: 'Too many requests. Please try again later.' });
-  }
-
-  const {
-    ref, contact, address, fulfilment,
-    deliveryZone, pickupPoint, paymentMethod,
-    proofPath, cartItems, totalZar,
-  } = req.body ?? {};
-
-  // Validate required fields
-  if (!ref || !contact?.email || !contact?.name || !paymentMethod || !cartItems?.length) {
-    return res.status(400).json({ error: 'Missing required order fields' });
-  }
-  if (totalZar != null && (typeof totalZar !== 'number' || totalZar <= 0 || totalZar > 1_000_000)) {
-    return res.status(400).json({ error: 'Invalid order total' });
-  }
-
-  const supabase = createAdminClient();
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  let emailSettings;
   try {
-    emailSettings = await loadEmailSettings(supabase);
+    const origin = req.headers.origin;
+    if (origin && origin !== ALLOWED_ORIGIN && !origin.includes('localhost')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const ip = getIp(req);
+    try {
+      const { success } = await ordersLimit.limit(ip);
+      if (!success) {
+        res.setHeader('Retry-After', '3600');
+        return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+      }
+    } catch (limitError) {
+      console.error('Order rate limit error:', limitError);
+    }
+
+    const body = typeof req.body === 'string'
+      ? JSON.parse(req.body || '{}')
+      : req.body ?? {};
+
+    const {
+      ref, contact, address, fulfilment,
+      deliveryZone, pickupPoint, paymentMethod,
+      proofPath, cartItems, totalZar,
+    } = body;
+
+    const orderRef = typeof ref === 'string' ? ref.trim().toUpperCase() : '';
+    if (!orderRef || !contact?.email || !contact?.name || !paymentMethod || !cartItems?.length) {
+      return res.status(400).json({ error: 'Missing required order fields' });
+    }
+    if (!/^MAP-[A-Z0-9]{6}$/.test(orderRef)) {
+      return res.status(400).json({ error: 'Invalid order reference' });
+    }
+    if (totalZar != null && (typeof totalZar !== 'number' || totalZar <= 0 || totalZar > 1_000_000)) {
+      return res.status(400).json({ error: 'Invalid order total' });
+    }
+
+    const supabase = createAdminClient();
+    const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+    let emailSettings;
+    try {
+      emailSettings = await loadEmailSettings(supabase);
+    } catch (err) {
+      console.error('Email settings load error:', err);
+      emailSettings = { studioEmail: 'hello@mapheane.art', orderSubject: 'New order - [REF]' };
+    }
+
+    let normalizedItems;
+    let serverShippingZar;
+    let serverTotalZar;
+    try {
+      normalizedItems = await normalizeCartItems(supabase, cartItems);
+      const subtotalZar = roundMoney(normalizedItems.reduce((sum, item) => sum + item.priceZar * item.quantity, 0));
+      const deliveryZones = await loadDeliveryZones(supabase);
+      serverShippingZar = fulfilment === 'pickup' ? 0 : deliveryZones[deliveryZone] ?? null;
+      if (serverShippingZar == null) return res.status(400).json({ error: 'Invalid delivery zone' });
+      serverTotalZar = roundMoney(subtotalZar + serverShippingZar);
+    } catch (err) {
+      return res.status(400).json({ error: err.message ?? 'Invalid cart' });
+    }
+
+    const { error: dbError } = await supabase.from('orders').insert({
+      ref: orderRef,
+      status: 'pending',
+      payment_method: paymentMethod,
+      fulfilment,
+      customer: contact,
+      address: address ?? null,
+      delivery_zone: deliveryZone ?? null,
+      pickup_point: pickupPoint ?? null,
+      cart_items: normalizedItems,
+      total_zar: serverTotalZar,
+      shipping_zar: serverShippingZar,
+      proof_url: proofPath ?? null,
+    });
+
+    if (dbError) {
+      console.error('Supabase insert error:', dbError);
+      return res.status(500).json({ error: 'Failed to save order. Please contact hello@mapheane.art.' });
+    }
+
+    try {
+      if (!resend) throw new Error('Resend API key is not configured');
+      const itemList = normalizedItems
+        .map(i => `<li>${esc(i.title)} × ${i.quantity} — ${formatZar(i.priceZar * i.quantity)}</li>`)
+        .join('');
+
+      await Promise.all([
+        resend.emails.send({
+          from: FROM_ADDRESS,
+          to: contact.email,
+          subject: `Order received — ${esc(orderRef)}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;color:#2D2A26;line-height:1.7">
+              <p>Dear ${esc(contact.name)},</p>
+              <p>Thank you for your order. I have received your payment notification for <strong>${esc(orderRef)}</strong> and will confirm it within 2 hours during studio hours (Mon–Sat, 9am–5pm SAST).</p>
+              <ul style="padding-left:20px">${itemList}</ul>
+              <p><strong>Total: ${formatZar(serverTotalZar)}</strong>${serverShippingZar > 0 ? ` (includes ${formatZar(serverShippingZar)} delivery)` : ' (free pickup)'}</p>
+              <p>You will receive a follow-up email once your payment has been verified.</p>
+              <p>Warm regards,<br/>Mapheane<br/><a href="mailto:hello@mapheane.art">hello@mapheane.art</a></p>
+            </div>
+          `,
+        }),
+        resend.emails.send({
+          from: FROM_ADDRESS,
+          to: emailSettings.studioEmail,
+          replyTo: contact.email,
+          subject: (emailSettings.orderSubject || 'New order - [REF]').replace('[REF]', esc(orderRef)),
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;color:#2D2A26">
+              <h2 style="font-size:18px">New order: ${esc(orderRef)}</h2>
+              <p><strong>Customer:</strong> ${esc(contact.name)} · <a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a></p>
+              <p><strong>Phone:</strong> ${esc(contact.phone ?? '—')}</p>
+              <p><strong>Payment:</strong> ${esc(paymentMethod.toUpperCase())}</p>
+              <p><strong>Fulfilment:</strong> ${esc(fulfilment ?? '—')}${deliveryZone ? ` (${esc(deliveryZone)})` : ''}${pickupPoint ? ` — Pickup: ${esc(pickupPoint)}` : ''}</p>
+              <ul style="padding-left:20px">${itemList}</ul>
+              <p><strong>Total: ${formatZar(serverTotalZar)}</strong></p>
+              ${proofPath ? `<p><strong>Proof of payment:</strong> ${esc(proofPath)}</p>` : ''}
+            </div>
+          `,
+        }),
+      ]);
+    } catch (emailErr) {
+      console.error('Email send error (order saved):', emailErr);
+    }
+
+    res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('Email settings load error:', err);
-    emailSettings = { studioEmail: 'hello@mapheane.art', orderSubject: 'New order - [REF]' };
+    console.error('Order error:', err);
+    res.status(500).json({ error: 'Order failed. Please try again or contact hello@mapheane.art.' });
   }
-
-  let normalizedItems;
-  let serverShippingZar;
-  let serverTotalZar;
-  try {
-    normalizedItems = await normalizeCartItems(supabase, cartItems);
-    const subtotalZar = roundMoney(normalizedItems.reduce((sum, item) => sum + item.priceZar * item.quantity, 0));
-    const deliveryZones = await loadDeliveryZones(supabase);
-    serverShippingZar = fulfilment === 'pickup' ? 0 : deliveryZones[deliveryZone] ?? null;
-    if (serverShippingZar == null) return res.status(400).json({ error: 'Invalid delivery zone' });
-    serverTotalZar = roundMoney(subtotalZar + serverShippingZar);
-  } catch (err) {
-    return res.status(400).json({ error: err.message ?? 'Invalid cart' });
-  }
-
-  // Insert order into Supabase
-  const { error: dbError } = await supabase.from('orders').insert({
-    ref,
-    status: 'pending',
-    payment_method: paymentMethod,
-    fulfilment,
-    customer: contact,
-    address: address ?? null,
-    delivery_zone: deliveryZone ?? null,
-    pickup_point: pickupPoint ?? null,
-    cart_items: normalizedItems,
-    total_zar: serverTotalZar,
-    shipping_zar: serverShippingZar,
-    proof_url: proofPath ?? null,
-  });
-
-  if (dbError) {
-    console.error('Supabase insert error:', dbError);
-    return res.status(500).json({ error: 'Failed to save order. Please contact hello@mapheane.art.' });
-  }
-
-  // Send emails in parallel — don't block order success if email fails
-  try {
-    const itemList = normalizedItems
-      .map(i => `<li>${esc(i.title)} × ${i.quantity} — ${formatZar(i.priceZar * i.quantity)}</li>`)
-      .join('');
-
-    await Promise.all([
-      // Buyer confirmation
-      resend.emails.send({
-        from: FROM_ADDRESS,
-        to: contact.email,
-        subject: `Order received — ${esc(ref)}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:600px;color:#2D2A26;line-height:1.7">
-            <p>Dear ${esc(contact.name)},</p>
-            <p>Thank you for your order. I have received your payment notification for <strong>${esc(ref)}</strong> and will confirm it within 2 hours during studio hours (Mon–Sat, 9am–5pm SAST).</p>
-            <ul style="padding-left:20px">${itemList}</ul>
-            <p><strong>Total: ${formatZar(serverTotalZar)}</strong>${serverShippingZar > 0 ? ` (includes ${formatZar(serverShippingZar)} delivery)` : ' (free pickup)'}</p>
-            <p>You will receive a follow-up email once your payment has been verified.</p>
-            <p>Warm regards,<br/>Mapheane<br/><a href="mailto:hello@mapheane.art">hello@mapheane.art</a></p>
-          </div>
-        `,
-      }),
-      // Studio notification
-      resend.emails.send({
-        from: FROM_ADDRESS,
-        to: emailSettings.studioEmail,
-        replyTo: contact.email,
-        subject: (emailSettings.orderSubject || 'New order - [REF]').replace('[REF]', esc(ref)),
-        html: `
-          <div style="font-family:sans-serif;max-width:600px;color:#2D2A26">
-            <h2 style="font-size:18px">New order: ${esc(ref)}</h2>
-            <p><strong>Customer:</strong> ${esc(contact.name)} · <a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a></p>
-            <p><strong>Phone:</strong> ${esc(contact.phone ?? '—')}</p>
-            <p><strong>Payment:</strong> ${esc(paymentMethod.toUpperCase())}</p>
-            <p><strong>Fulfilment:</strong> ${esc(fulfilment ?? '—')}${deliveryZone ? ` (${esc(deliveryZone)})` : ''}${pickupPoint ? ` — Pickup: ${esc(pickupPoint)}` : ''}</p>
-            <ul style="padding-left:20px">${itemList}</ul>
-            <p><strong>Total: ${formatZar(serverTotalZar)}</strong></p>
-            ${proofPath ? `<p><strong>Proof of payment:</strong> ${esc(proofPath)}</p>` : ''}
-          </div>
-        `,
-      }),
-    ]);
-  } catch (emailErr) {
-    console.error('Email send error (order saved):', emailErr);
-    // Order is already saved — don't fail the response over email
-  }
-
-  res.status(200).json({ ok: true });
 }
 
 module.exports = handler;
