@@ -3,24 +3,35 @@ const { trackLimit, getIp } = require('./_lib/ratelimit');
 
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
 
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  const allowed =
+    !origin ||
+    origin === ALLOWED_ORIGIN ||
+    origin.includes('localhost') ||
+    /^https:\/\/mapheane(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(origin);
+
+  res.setHeader('Access-Control-Allow-Origin', origin && allowed ? origin : ALLOWED_ORIGIN);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  return allowed;
+}
+
 function formatIssueDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+function joinParts(parts) {
+  return parts.filter(Boolean).join(' · ');
+}
+
 async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (!setCors(req, res)) return res.status(403).json({ error: 'Forbidden' });
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
-    const origin = req.headers.origin;
-    if (origin && origin !== ALLOWED_ORIGIN && !origin.includes('localhost')) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
     const ref = typeof req.query.ref === 'string' ? req.query.ref.trim().toUpperCase() : '';
@@ -59,19 +70,35 @@ async function handler(req, res) {
     }
 
     const first = (row.cart_items ?? [])[0];
-    const artwork = first?.artwork ?? {};
+    let artwork = first?.artwork ?? {};
     const edition = first?.edition;
+    const artworkId = artwork.id ?? edition?.artworkId ?? edition?.artwork_id;
+
+    if (artworkId && (!artwork.dimensions || !artwork.year || (!artwork.technique && !artwork.medium))) {
+      const { data: fallbackArtwork, error: fallbackError } = await supabase
+        .from('artworks')
+        .select('id, title, medium, technique, dimensions, year')
+        .eq('id', artworkId)
+        .maybeSingle();
+      if (!fallbackError && fallbackArtwork) {
+        artwork = { ...fallbackArtwork, ...artwork };
+      }
+    }
 
     const editionLabel = edition
-      ? `${edition.type} · ${edition.size} · ${edition.paper}`
+      ? joinParts([edition.type, edition.size, edition.paper])
       : 'Original · One of a kind';
+    const medium = edition?.medium ?? artwork.technique ?? artwork.medium ?? first?.medium ?? '—';
+    const dimensions = edition?.size ?? artwork.dimensions ?? '—';
+    const year = edition?.year ?? artwork.year ?? new Date(row.created_at).getFullYear();
 
     res.status(200).json({
-      title:         artwork.title         ?? 'Untitled',
-      medium:        artwork.technique     ?? artwork.medium ?? '—',
-      dimensions:    artwork.dimensions    ?? '—',
-      year:          String(artwork.year   ?? new Date(row.created_at).getFullYear()),
+      title:         edition?.title        ?? artwork.title ?? first?.title ?? 'Untitled',
+      medium,
+      dimensions,
+      year:          String(year),
       edition:       editionLabel,
+      classification: edition ? 'Print Edition' : 'Original Artwork',
       ref:           `COA-${row.ref.replace('MAP-', '')}`,
       orderRef:      row.ref,
       collectorName: row.customer?.name    ?? '—',

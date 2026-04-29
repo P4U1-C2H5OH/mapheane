@@ -55,29 +55,29 @@ async function normalizeCartItems(supabase, cartItems) {
   }
 
   const editionIds = [...new Set(cartItems.map(i => i?.edition?.id).filter(Boolean))];
-  const originalArtworkIds = [...new Set(
+  const requestedOriginalArtworkIds = [...new Set(
     cartItems
       .filter(i => !i?.edition?.id)
       .map(i => i?.artwork?.id)
       .filter(Boolean)
   )];
 
-  const [editionsRes, artworksRes] = await Promise.all([
-    editionIds.length
-      ? supabase
-        .from('editions')
-        .select('id, artwork_id, title, medium, size, paper, type, price_zar, price_eur, image_url, available')
-        .in('id', editionIds)
-      : Promise.resolve({ data: [], error: null }),
-    originalArtworkIds.length
-      ? supabase
-        .from('artworks')
-        .select('id, title, medium, dimensions, price_eur, status, images, year')
-        .in('id', originalArtworkIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-
+  const editionsRes = editionIds.length
+    ? await supabase
+      .from('editions')
+      .select('id, artwork_id, title, medium, year, size, paper, type, price_zar, price_eur, image_url, available')
+      .in('id', editionIds)
+    : { data: [], error: null };
   if (editionsRes.error) throw new Error('Unable to validate editions');
+
+  const editionArtworkIds = (editionsRes.data ?? []).map(row => row.artwork_id).filter(Boolean);
+  const artworkIds = [...new Set([...requestedOriginalArtworkIds, ...editionArtworkIds])];
+  const artworksRes = artworkIds.length
+    ? await supabase
+      .from('artworks')
+      .select('id, title, medium, technique, dimensions, price_eur, status, images, year')
+      .in('id', artworkIds)
+    : { data: [], error: null };
   if (artworksRes.error) throw new Error('Unable to validate artworks');
 
   const editions = new Map((editionsRes.data ?? []).map(row => [row.id, row]));
@@ -90,17 +90,30 @@ async function normalizeCartItems(supabase, cartItems) {
     if (item?.edition?.id) {
       const edition = editions.get(item.edition.id);
       if (!edition || edition.available === false) throw new Error('An edition in your cart is no longer available');
+      const artwork = artworks.get(edition.artwork_id);
 
       const priceZar = zarFromRow(edition);
       if (priceZar <= 0) throw new Error('An edition in your cart has invalid pricing');
 
       return {
-        artwork: item.artwork?.id ? { id: item.artwork.id, title: item.artwork.title ?? edition.title } : null,
+        artwork: artwork ? {
+          id: artwork.id,
+          title: artwork.title ?? edition.title,
+          medium: artwork.medium,
+          technique: artwork.technique,
+          dimensions: artwork.dimensions,
+          images: Array.isArray(artwork.images) ? artwork.images : [],
+          year: artwork.year,
+        } : {
+          id: edition.artwork_id,
+          title: item.artwork?.title ?? edition.title,
+        },
         edition: {
           id: edition.id,
           artworkId: edition.artwork_id,
           title: edition.title,
           medium: edition.medium,
+          year: edition.year,
           size: edition.size,
           paper: edition.paper,
           type: edition.type,

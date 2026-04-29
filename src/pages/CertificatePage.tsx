@@ -18,6 +18,7 @@ interface CertData {
   orderRef: string;
   collectorName: string;
   date: string;
+  classification?: string;
 }
 
 // Shown when navigated to without a ref (e.g. from PressKit as a preview)
@@ -31,6 +32,7 @@ const PREVIEW: CertData = {
   orderRef: '',
   collectorName: '[Collector Name]',
   date: 'March 2026',
+  classification: 'Original Artwork',
 };
 
 export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) {
@@ -100,7 +102,7 @@ export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) 
 
           {isPreview && (
             <p className="text-muted text-sm max-w-lg">
-              Every original work by Mapheane ships with a hand-signed physical certificate. This page shows a preview of that document.
+              Every original work and signed edition by Mapheane ships with a hand-signed physical certificate. This page shows a preview of that document.
             </p>
           )}
         </div>
@@ -160,13 +162,13 @@ export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) 
                   <h2 className="font-serif text-3xl md:text-4xl text-charcoal mb-1" style={{ letterSpacing: '-0.01em' }}>
                     Certificate of Authenticity
                   </h2>
-                  <p className="text-xs font-sans uppercase tracking-[0.2em] text-muted/60">Original Artwork</p>
+                  <p className="text-xs font-sans uppercase tracking-[0.2em] text-muted/60">{cert.classification ?? 'Authentic Work'}</p>
                 </div>
 
                 {/* Body */}
                 <div className="mb-10">
                   <p className="text-base text-charcoal/70 leading-relaxed mb-8 text-center max-w-xl mx-auto" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-                    This document certifies that the work described below is an original artwork created by{' '}
+                    This document certifies that the work described below is an authentic work issued by{' '}
                     <strong className="text-charcoal font-normal">Mapheane</strong>, and constitutes proof of its authenticity and provenance.
                   </p>
 
