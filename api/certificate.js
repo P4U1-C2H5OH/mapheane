@@ -15,64 +15,72 @@ async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const origin = req.headers.origin;
-  if (origin && origin !== ALLOWED_ORIGIN && !origin.includes('localhost')) {
-    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const origin = req.headers.origin;
+    if (origin && origin !== ALLOWED_ORIGIN && !origin.includes('localhost')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+    const ref = typeof req.query.ref === 'string' ? req.query.ref.trim().toUpperCase() : '';
+    if (!ref || !/^MAP-[A-Z0-9]{6}$/.test(ref)) {
+      return res.status(400).json({ error: 'Invalid reference format' });
+    }
+
+    const ip = getIp(req);
+    try {
+      const { success } = await trackLimit.limit(ip);
+      if (!success) {
+        res.setHeader('Retry-After', '3600');
+        return res.status(429).json({ error: 'Too many requests. Try again later.' });
+      }
+    } catch (limitError) {
+      console.error('Certificate rate limit error:', limitError);
+    }
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY
+    );
+
+    const { data: row, error } = await supabase
+      .from('orders')
+      .select('ref, status, customer, cart_items, created_at')
+      .eq('ref', ref)
+      .single();
+
+    if (error || !row) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (row.status === 'cancelled' || row.status === 'pending') {
+      return res.status(404).json({ error: 'Certificate not available for this order' });
+    }
+
+    const first = (row.cart_items ?? [])[0];
+    const artwork = first?.artwork ?? {};
+    const edition = first?.edition;
+
+    const editionLabel = edition
+      ? `${edition.type} · ${edition.size} · ${edition.paper}`
+      : 'Original · One of a kind';
+
+    res.status(200).json({
+      title:         artwork.title         ?? 'Untitled',
+      medium:        artwork.technique     ?? artwork.medium ?? '—',
+      dimensions:    artwork.dimensions    ?? '—',
+      year:          String(artwork.year   ?? new Date(row.created_at).getFullYear()),
+      edition:       editionLabel,
+      ref:           `COA-${row.ref.replace('MAP-', '')}`,
+      orderRef:      row.ref,
+      collectorName: row.customer?.name    ?? '—',
+      date:          formatIssueDate(row.created_at),
+    });
+  } catch (err) {
+    console.error('Certificate error:', err);
+    res.status(500).json({ error: 'Unable to load certificate. Please try again.' });
   }
-
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-
-  const ref = typeof req.query.ref === 'string' ? req.query.ref.trim().toUpperCase() : '';
-  if (!ref || !/^MAP-[A-Z0-9]{6}$/.test(ref)) {
-    return res.status(400).json({ error: 'Invalid reference format' });
-  }
-
-  const ip = getIp(req);
-  const { success } = await trackLimit.limit(ip);
-  if (!success) {
-    res.setHeader('Retry-After', '3600');
-    return res.status(429).json({ error: 'Too many requests. Try again later.' });
-  }
-
-  const supabase = createClient(
-    process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY
-  );
-
-  const { data: row, error } = await supabase
-    .from('orders')
-    .select('ref, status, customer, cart_items, created_at')
-    .eq('ref', ref)
-    .single();
-
-  if (error || !row) {
-    return res.status(404).json({ error: 'Order not found' });
-  }
-
-  if (row.status === 'cancelled' || row.status === 'pending') {
-    return res.status(404).json({ error: 'Certificate not available for this order' });
-  }
-
-  // cart_items shape: [{ artwork: { title, dimensions, technique, medium, year, ... }, edition?: {...}, quantity }]
-  const first = (row.cart_items ?? [])[0];
-  const artwork = first?.artwork ?? {};
-  const edition = first?.edition;
-
-  const editionLabel = edition
-    ? `${edition.type} · ${edition.size} · ${edition.paper}`
-    : 'Original · One of a kind';
-
-  res.status(200).json({
-    title:         artwork.title         ?? 'Untitled',
-    medium:        artwork.technique     ?? artwork.medium ?? '—',
-    dimensions:    artwork.dimensions    ?? '—',
-    year:          String(artwork.year   ?? new Date(row.created_at).getFullYear()),
-    edition:       editionLabel,
-    ref:           `COA-${row.ref.replace('MAP-', '')}`,
-    orderRef:      row.ref,
-    collectorName: row.customer?.name    ?? '—',
-    date:          formatIssueDate(row.created_at),
-  });
 }
 
 module.exports = handler;
