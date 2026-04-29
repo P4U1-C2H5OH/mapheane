@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, Plus, Heart, MapPin, Mail, Phone, Clock, Edit3, X, Check, AlertCircle,
+  Search, Plus, Heart, MapPin, Mail, Phone, Clock, X, Check, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { formatZar } from '../../lib/pricing';
@@ -29,6 +29,7 @@ interface Collector {
 }
 
 interface Membership {
+  id: string;
   tierName: string;
   status: string;
   billing: string;
@@ -39,6 +40,7 @@ interface Membership {
 
 function mapMembership(row: Record<string, unknown>): Membership {
   return {
+    id:         row.id as string,
     tierName:   (row.tier_name as string) ?? (row.tier as string) ?? 'Membership',
     status:     (row.status as string) ?? 'interest',
     billing:    (row.billing as string) ?? 'annual',
@@ -75,6 +77,13 @@ const SEGMENT_COLORS: Record<string, string> = {
   'Collector':            'bg-sage/15 text-sageDark',
   'Prospect':             'bg-gold/20 text-charcoalLight',
   'Workshop Participant': 'bg-charcoal/8 text-muted',
+};
+
+const MEMBERSHIP_STATUS_COLORS: Record<string, string> = {
+  active:          'bg-sage/12 text-sageDark',
+  pending_payment: 'bg-terracotta/10 text-terracotta',
+  interest:        'bg-gold/15 text-charcoalLight',
+  cancelled:       'bg-charcoal/8 text-muted',
 };
 
 function CollectorCard({ c, onSelect }: { c: Collector; onSelect: () => void }) {
@@ -130,6 +139,11 @@ function CollectorCard({ c, onSelect }: { c: Collector; onSelect: () => void }) 
       </div>
 
       <div className="flex flex-wrap gap-1">
+        {c.membership?.status === 'pending_payment' && (
+          <span className="text-[10px] text-terracotta border border-terracotta/20 px-1.5 py-0.5">
+            payment pending
+          </span>
+        )}
         {c.tags.slice(0, 2).map(t => (
           <span key={t} className="text-[10px] text-muted/70 border border-charcoal/10 px-1.5 py-0.5">{t}</span>
         ))}
@@ -149,7 +163,20 @@ function CollectorCard({ c, onSelect }: { c: Collector; onSelect: () => void }) 
   );
 }
 
-function CollectorDetail({ c, onClose }: { c: Collector; onClose: () => void }) {
+function CollectorDetail({
+  c,
+  onClose,
+  onMembershipStatus,
+  updatingMembership,
+}: {
+  c: Collector;
+  onClose: () => void;
+  onMembershipStatus: (collector: Collector, status: 'active' | 'cancelled') => void;
+  updatingMembership?: string;
+}) {
+  const membershipStatus = c.membership?.status ?? '';
+  const canConfirmMembership = c.membership && membershipStatus === 'pending_payment';
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}
@@ -230,7 +257,7 @@ function CollectorDetail({ c, onClose }: { c: Collector; onClose: () => void }) 
             <div className="bg-sage/8 border border-sage/20 p-4 space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-sans text-sm text-charcoal">{c.membership.tierName}</p>
-                <span className="text-[10px] uppercase tracking-widest text-sageDark bg-sage/12 px-2 py-0.5">
+                <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 ${MEMBERSHIP_STATUS_COLORS[c.membership.status] ?? 'bg-charcoal/8 text-muted'}`}>
                   {c.membership.status.replace('_', ' ')}
                 </span>
               </div>
@@ -240,6 +267,27 @@ function CollectorDetail({ c, onClose }: { c: Collector; onClose: () => void }) 
               </p>
               {c.membership.paymentRef && (
                 <p className="text-xs text-charcoal/70">Payment ref: {c.membership.paymentRef}</p>
+              )}
+              {canConfirmMembership && (
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    disabled={updatingMembership === c.membership.id}
+                    onClick={() => onMembershipStatus(c, 'active')}
+                    className="flex items-center justify-center gap-2 bg-sage text-background px-3 py-2 text-[10px] font-sans uppercase tracking-widest hover:bg-sageDark transition-colors disabled:opacity-50"
+                  >
+                    <Check className="w-3 h-3" /> Mark Paid
+                  </button>
+                  <button
+                    disabled={updatingMembership === c.membership.id}
+                    onClick={() => onMembershipStatus(c, 'cancelled')}
+                    className="flex items-center justify-center gap-2 border border-charcoal/15 text-muted px-3 py-2 text-[10px] font-sans uppercase tracking-widest hover:text-charcoal hover:border-charcoal/30 transition-all disabled:opacity-50"
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                </div>
+              )}
+              {c.membership.status === 'active' && (
+                <p className="text-xs text-sageDark pt-1">Membership is active.</p>
               )}
             </div>
           </div>
@@ -274,6 +322,8 @@ export function CollectorCRM() {
   const [saving, setSaving]         = useState(false);
   const [loading, setLoading]       = useState(true);
   const [loadError, setLoadError]   = useState('');
+  const [actionError, setActionError] = useState('');
+  const [updatingMembership, setUpdatingMembership] = useState('');
   const [newForm, setNewForm]       = useState({
     name: '', email: '', phone: '', location: '', country: '',
     segment: 'Prospect' as Collector['segment'],
@@ -321,9 +371,8 @@ export function CollectorCRM() {
   });
 
   const totalLTV = collectors.reduce((s, c) => s + c.ltv, 0);
-  const spenders = collectors.filter(c => c.totalSpend > 0);
-  const avgSpend = spenders.length ? spenders.reduce((s, c) => s + c.totalSpend, 0) / spenders.length : 0;
   const vipCount = collectors.filter(c => c.segment === 'VIP').length;
+  const pendingMemberships = collectors.filter(c => c.membership?.status === 'pending_payment').length;
 
   const handleAdd = async () => {
     if (!newForm.name || !newForm.email) return;
@@ -362,6 +411,55 @@ export function CollectorCRM() {
       alert(err instanceof Error ? err.message : 'Failed to add collector');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateMembershipStatus = async (collector: Collector, status: 'active' | 'cancelled') => {
+    if (!collector.membership) return;
+    setUpdatingMembership(collector.membership.id);
+    setActionError('');
+    const statusLabel = status === 'active' ? 'Membership payment confirmed' : 'Membership cancelled';
+    const noteLine = `${statusLabel} (${collector.membership.paymentRef ?? 'no ref'}) on ${new Date().toLocaleDateString('en-ZA')}`;
+
+    try {
+      const { error: membershipError } = await supabase
+        .from('memberships')
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', collector.membership.id);
+      if (membershipError) throw membershipError;
+
+      const collectorUpdates: Record<string, unknown> = {
+        last_contact: statusLabel,
+        notes: collector.notes ? `${collector.notes}\n${noteLine}` : noteLine,
+      };
+      if (status === 'active') collectorUpdates.tier = 'Collector';
+
+      const { error: collectorError } = await supabase
+        .from('collectors')
+        .update(collectorUpdates)
+        .eq('id', collector.id);
+      if (collectorError) throw collectorError;
+
+      const updateCollector = (c: Collector): Collector => {
+        if (c.id !== collector.id || !c.membership) return c;
+        return {
+          ...c,
+          segment: status === 'active' ? 'Collector' : c.segment,
+          lastContact: statusLabel,
+          notes: collectorUpdates.notes as string,
+          membership: { ...c.membership, status },
+        };
+      };
+      setCollectors(prev => prev.map(updateCollector));
+      setSelected(prev => prev ? updateCollector(prev) : prev);
+    } catch (err) {
+      console.error('Membership update error:', err);
+      setActionError(err instanceof Error ? err.message : 'Failed to update membership.');
+    } finally {
+      setUpdatingMembership('');
     }
   };
 
@@ -453,7 +551,7 @@ export function CollectorCRM() {
           { label: 'Total collectors', value: String(collectors.length),              color: '#A0522D' },
           { label: 'VIP collectors',   value: String(vipCount),                       color: '#7C8B6F' },
           { label: 'Total LTV',        value: `R ${(totalLTV / 1000).toFixed(0)}k`,  color: '#C4956A' },
-          { label: 'Avg. spend',       value: `R ${(avgSpend / 1000).toFixed(0)}k`,  color: '#B8A088' },
+          { label: 'Pending dues',     value: String(pendingMemberships),             color: '#B8A088' },
         ].map(s => (
           <div key={s.label} className="bg-background border border-charcoal/8 p-4">
             <p className="text-label uppercase tracking-widest text-muted mb-1">{s.label}</p>
@@ -491,6 +589,12 @@ export function CollectorCRM() {
           {loadError}
         </div>
       )}
+      {actionError && (
+        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 text-red-600 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {actionError}
+        </div>
+      )}
 
       {/* Grid + detail panel */}
       {!loading && !loadError && (
@@ -512,7 +616,12 @@ export function CollectorCRM() {
           <AnimatePresence>
             {selected && (
               <div className="lg:col-span-2">
-                <CollectorDetail c={selected} onClose={() => setSelected(null)} />
+                <CollectorDetail
+                  c={selected}
+                  onClose={() => setSelected(null)}
+                  onMembershipStatus={updateMembershipStatus}
+                  updatingMembership={updatingMembership}
+                />
               </div>
             )}
           </AnimatePresence>
