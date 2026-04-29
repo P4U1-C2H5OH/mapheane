@@ -199,12 +199,37 @@ function TierCard({ tier, billing, onJoin }: { tier: Tier; billing: 'monthly' | 
   );
 }
 
-function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
+interface MembershipResult {
+  status: 'active' | 'pending_payment';
+  tier: string;
+  billing: 'monthly' | 'annual';
+  amountZar: number;
+  paymentRef: string | null;
+  message: string;
+  payment?: {
+    mpesaName?: string;
+    mpesaNumber?: string;
+    ecocashName?: string;
+    ecocashNumber?: string;
+    wireAccountName?: string;
+    wireBankName?: string;
+    wireAccountNumber?: string;
+    wireSwift?: string;
+    wireBranch?: string;
+  };
+}
+
+function JoinModal({ tier, billing, onClose }: { tier: Tier; billing: 'monthly' | 'annual'; onClose: () => void }) {
   const [email,   setEmail]   = useState('');
   const [name,    setName]    = useState('');
+  const [phone,   setPhone]   = useState('');
+  const [note,    setNote]    = useState('');
+  const [trap,    setTrap]    = useState('');
   const [done,    setDone]    = useState(false);
   const [sending, setSending] = useState(false);
   const [error,   setError]   = useState('');
+  const [result,  setResult]  = useState<MembershipResult | null>(null);
+  const { fromZAR } = useCurrency();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,25 +237,29 @@ function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
     setSending(true);
     setError('');
     try {
-      const res = await fetch('/api/contact', {
+      const res = await fetch('/api/memberships', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          type: 'General',
-          message: `Collector's Circle interest — ${tier.name} tier. Please send membership details and payment instructions.`,
-          trap: '',
-        }),
+        body: JSON.stringify({ tier: tier.id, billing, name, email, phone, note, trap }),
       });
-      if (!res.ok) throw new Error('Submission failed');
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) throw new Error(data.error || 'Submission failed');
+      setResult(data);
       setDone(true);
-    } catch {
-      setError('Something went wrong. Please email hello@mapheane.art directly.');
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please email hello@mapheane.art directly.');
     } finally {
       setSending(false);
     }
   };
+
+  const amount = billing === 'annual' ? tier.price.annual : tier.price.monthly;
 
   return (
     <>
@@ -252,20 +281,58 @@ function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
           <AnimatePresence mode="wait">
             {done ? (
               <motion.div key="done" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="text-center py-4">
+                className="py-4">
                 <div className="w-12 h-12 bg-sage/12 flex items-center justify-center mx-auto mb-4">
                   <Check className="w-6 h-6 text-sage" />
                 </div>
-                <p className="font-serif italic text-xl text-charcoal mb-2">Welcome to {tier.name}</p>
-                <p className="text-sm text-muted leading-relaxed">
-                  You'll receive a personal welcome from Mapheane within 48 hours, along with membership details and payment instructions.
+                <p className="font-serif italic text-xl text-charcoal mb-2 text-center">Welcome to {tier.name}</p>
+                <p className="text-sm text-muted leading-relaxed text-center mb-5">
+                  {result?.message ?? 'Your membership request has been saved.'}
                 </p>
+
+                {result && result.amountZar > 0 && (
+                  <div className="space-y-4">
+                    <div className="bg-parchment/50 border border-charcoal/8 p-4">
+                      <p className="text-label uppercase tracking-widest text-muted mb-1">Payment reference</p>
+                      <p className="font-sans text-charcoal text-lg">{result.paymentRef}</p>
+                      <p className="text-xs text-muted mt-1">
+                        Amount due: {fromZAR(result.amountZar)} · {result.billing}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 text-xs text-charcoal/75">
+                      {result.payment?.mpesaNumber && (
+                        <div className="border border-charcoal/8 p-3">
+                          <p className="text-label uppercase tracking-widest text-muted mb-1">M-Pesa</p>
+                          <p>{result.payment.mpesaName} · {result.payment.mpesaNumber}</p>
+                        </div>
+                      )}
+                      {result.payment?.ecocashNumber && (
+                        <div className="border border-charcoal/8 p-3">
+                          <p className="text-label uppercase tracking-widest text-muted mb-1">EcoCash</p>
+                          <p>{result.payment.ecocashName} · {result.payment.ecocashNumber}</p>
+                        </div>
+                      )}
+                      {result.payment?.wireAccountNumber && (
+                        <div className="border border-charcoal/8 p-3">
+                          <p className="text-label uppercase tracking-widest text-muted mb-1">Wire transfer</p>
+                          <p>{result.payment.wireAccountName}</p>
+                          <p>{result.payment.wireBankName} · {result.payment.wireAccountNumber}</p>
+                          {result.payment.wireSwift && <p>SWIFT: {result.payment.wireSwift}</p>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             ) : (
               <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <p className="text-label uppercase tracking-[0.25em] mb-1" style={{ color: tier.color }}>Join</p>
-                <h3 className="font-serif italic text-2xl text-charcoal mb-5">{tier.name}</h3>
+                <h3 className="font-serif italic text-2xl text-charcoal mb-1">{tier.name}</h3>
+                <p className="text-xs text-muted mb-5">
+                  {amount > 0 ? `${fromZAR(amount)} billed ${billing}` : 'Free studio letters membership'}
+                </p>
                 <form onSubmit={submit} className="space-y-5" noValidate>
+                  <input name="trap" type="text" value={trap} onChange={e => setTrap(e.target.value)} aria-hidden="true" tabIndex={-1} autoComplete="off" style={{ display: 'none' }} />
                   <div className="group">
                     <label className="text-label uppercase tracking-widest text-muted group-focus-within:text-terracotta transition-colors block mb-1.5">
                       Name
@@ -282,8 +349,27 @@ function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
                       placeholder="your@email.com"
                       className="w-full bg-transparent border-b border-charcoal/18 py-2 text-charcoal font-serif text-lg focus:outline-none focus:border-terracotta transition-colors placeholder:text-charcoal/25 placeholder:italic" />
                   </div>
+                  <div className="group">
+                    <label className="text-label uppercase tracking-widest text-muted group-focus-within:text-terracotta transition-colors block mb-1.5">
+                      Phone
+                    </label>
+                    <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+                      placeholder="+266 ..."
+                      className="w-full bg-transparent border-b border-charcoal/18 py-2 text-charcoal font-serif text-lg focus:outline-none focus:border-terracotta transition-colors placeholder:text-charcoal/25 placeholder:italic" />
+                  </div>
+                  <div className="group">
+                    <label className="text-label uppercase tracking-widest text-muted group-focus-within:text-terracotta transition-colors block mb-1.5">
+                      Note
+                    </label>
+                    <textarea value={note} onChange={e => setNote(e.target.value)}
+                      placeholder="What drew you to the circle?"
+                      rows={3}
+                      className="w-full bg-transparent border border-charcoal/12 px-3 py-2 text-sm text-charcoal focus:outline-none focus:border-terracotta/50 transition-colors resize-none placeholder:text-charcoal/25" />
+                  </div>
                   <div className="bg-parchment/50 border border-charcoal/8 p-4 text-xs text-muted leading-relaxed">
-                    Payment details will be sent to you via email. Membership activates on receipt of first payment. Cancel anytime.
+                    {amount > 0
+                      ? 'Your membership is saved now. Payment instructions and a reference will appear after submission; activation happens after payment confirmation.'
+                      : 'You will be added to Studio News and the collector CRM for future previews.'}
                   </div>
                   {error && <p className="text-xs text-red-400">{error}</p>}
                   <button type="submit" disabled={sending || !email || !name}
@@ -291,7 +377,7 @@ function JoinModal({ tier, onClose }: { tier: Tier; onClose: () => void }) {
                     style={{ background: tier.color }}>
                     {sending
                       ? <div className="w-3.5 h-3.5 border border-white/50 border-t-white rounded-full animate-spin" />
-                      : <>Submit interest <ArrowRight className="w-3.5 h-3.5" /></>}
+                      : <>{amount > 0 ? 'Create membership' : 'Subscribe free'} <ArrowRight className="w-3.5 h-3.5" /></>}
                   </button>
                 </form>
               </motion.div>
@@ -471,7 +557,7 @@ export function CollectorCirclePage({ onNavigate }: Props) {
       {/* Join modal */}
       <AnimatePresence>
         {joiningTier && (
-          <JoinModal tier={joiningTier} onClose={() => setJoiningTier(null)} />
+          <JoinModal tier={joiningTier} billing={billing} onClose={() => setJoiningTier(null)} />
         )}
       </AnimatePresence>
     </>

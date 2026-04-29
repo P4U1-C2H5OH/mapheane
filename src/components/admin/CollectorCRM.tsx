@@ -25,9 +25,30 @@ interface Collector {
   ltv: number;
   wishlistCount: number;
   tags: string[];
+  membership?: Membership;
 }
 
-function mapRow(row: Record<string, unknown>): Collector {
+interface Membership {
+  tierName: string;
+  status: string;
+  billing: string;
+  amountZar: number;
+  paymentRef?: string;
+  createdAt?: string;
+}
+
+function mapMembership(row: Record<string, unknown>): Membership {
+  return {
+    tierName:   (row.tier_name as string) ?? (row.tier as string) ?? 'Membership',
+    status:     (row.status as string) ?? 'interest',
+    billing:    (row.billing as string) ?? 'annual',
+    amountZar:  (row.amount_zar as number) ?? 0,
+    paymentRef: (row.payment_ref as string | undefined) ?? undefined,
+    createdAt:  row.created_at ? new Date(row.created_at as string).toLocaleDateString('en-ZA', { dateStyle: 'medium' }) : undefined,
+  };
+}
+
+function mapRow(row: Record<string, unknown>, membership?: Membership): Collector {
   return {
     id:            row.id as string,
     name:          (row.name as string)         ?? '—',
@@ -45,6 +66,7 @@ function mapRow(row: Record<string, unknown>): Collector {
     ltv:           (row.ltv_zar as number)      ?? 0,
     wishlistCount: (row.wishlist_count as number) ?? 0,
     tags:          Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    membership,
   };
 }
 
@@ -202,6 +224,27 @@ function CollectorDetail({ c, onClose }: { c: Collector; onClose: () => void }) 
           </div>
         )}
 
+        {c.membership && (
+          <div>
+            <p className="text-label uppercase tracking-widest text-muted mb-2">Membership</p>
+            <div className="bg-sage/8 border border-sage/20 p-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-sans text-sm text-charcoal">{c.membership.tierName}</p>
+                <span className="text-[10px] uppercase tracking-widest text-sageDark bg-sage/12 px-2 py-0.5">
+                  {c.membership.status.replace('_', ' ')}
+                </span>
+              </div>
+              <p className="text-xs text-muted">
+                {formatZar(c.membership.amountZar)} · {c.membership.billing}
+                {c.membership.createdAt ? ` · ${c.membership.createdAt}` : ''}
+              </p>
+              {c.membership.paymentRef && (
+                <p className="text-xs text-charcoal/70">Payment ref: {c.membership.paymentRef}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {c.notes && (
           <div>
             <p className="text-label uppercase tracking-widest text-muted mb-2">Studio notes</p>
@@ -238,18 +281,33 @@ export function CollectorCRM() {
   });
 
   useEffect(() => {
-    supabase
-      .from('collectors')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
+    async function load() {
+      const [collectorsRes, membershipsRes] = await Promise.all([
+        supabase
+          .from('collectors')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('memberships')
+          .select('*')
+          .order('created_at', { ascending: false }),
+      ]);
+      if (collectorsRes.error) {
           setLoadError('Failed to load collectors.');
-        } else {
-          setCollectors((data ?? []).map(mapRow));
-        }
-        setLoading(false);
-      });
+      } else {
+        const membershipsByCollector = new Map<string, Membership>();
+        (membershipsRes.data ?? []).forEach(row => {
+          const collectorId = row.collector_id as string | undefined;
+          if (collectorId && !membershipsByCollector.has(collectorId)) {
+            membershipsByCollector.set(collectorId, mapMembership(row));
+          }
+        });
+        setCollectors((collectorsRes.data ?? []).map(row => mapRow(row, membershipsByCollector.get(row.id as string))));
+      }
+      if (membershipsRes.error) console.error('Memberships load error:', membershipsRes.error);
+      setLoading(false);
+    }
+    load();
   }, []);
 
   const filtered = collectors.filter(c => {
