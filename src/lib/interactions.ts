@@ -63,6 +63,15 @@ function visitorId() {
   }
 }
 
+export function getVisitorId() {
+  return visitorId();
+}
+
+export function currentInteractionPage() {
+  if (typeof window === 'undefined') return '';
+  return `${window.location.pathname}${window.location.search}`;
+}
+
 async function insertDirect(payload: ReturnType<typeof payloadFor>) {
   await supabase.from('public_interactions').insert(rowFor(payload));
 }

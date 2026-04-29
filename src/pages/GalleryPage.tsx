@@ -11,7 +11,7 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { QuickViewModal } from '../components/QuickViewModal';
-import { trackInteraction } from '../lib/interactions';
+import { currentInteractionPage, getVisitorId, trackInteraction } from '../lib/interactions';
 
 interface GalleryPageProps {
   onNavigate: (page: any) => void;
@@ -242,26 +242,35 @@ function GalleryCard({
   const [notifyOpen, setNotifyOpen] = React.useState(false);
   const [notifyEmail, setNotifyEmail] = React.useState('');
   const [notifySent, setNotifySent] = React.useState(false);
+  const [notifyError, setNotifyError] = React.useState('');
 
-  const handleNotify = (e: React.FormEvent) => {
+  const handleNotify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notifyEmail) return;
-    const key = `notify_${artwork.id}`;
-    const existing = JSON.parse(localStorage.getItem(key) || '[]') as string[];
-    if (!existing.includes(notifyEmail)) {
-      localStorage.setItem(key, JSON.stringify([...existing, notifyEmail]));
+    const email = notifyEmail;
+    setNotifyError('');
+    try {
+      const res = await fetch('/api/interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'notify_request',
+          targetType: 'artwork',
+          targetId: artwork.id,
+          targetTitle: artwork.title,
+          source: 'gallery_page',
+          visitorId: getVisitorId(),
+          page: currentInteractionPage(),
+          metadata: { email, artworkTitle: artwork.title },
+        }),
+      });
+      if (!res.ok) throw new Error('Unable to save request');
+      setNotifySent(true);
+      setNotifyEmail('');
+      setNotifyOpen(false);
+    } catch {
+      setNotifyError('Unable to save. Please try again.');
     }
-    trackInteraction({
-      action: 'notify_request',
-      targetType: 'artwork',
-      targetId: artwork.id,
-      targetTitle: artwork.title,
-      source: 'gallery_page',
-      metadata: { email: notifyEmail },
-    });
-    setNotifySent(true);
-    setNotifyEmail('');
-    setNotifyOpen(false);
   };
 
   return (
@@ -329,23 +338,26 @@ function GalleryCard({
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.3 }}
                 onSubmit={handleNotify}
-                className="overflow-hidden pt-2 flex gap-2"
+                className="overflow-hidden pt-2"
                 onClick={e => e.stopPropagation()}
               >
-                <input
-                  type="email"
-                  value={notifyEmail}
-                  onChange={e => setNotifyEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  required
-                  className="flex-1 min-w-0 px-3 py-2 border border-charcoal/15 bg-background text-xs font-sans text-charcoal placeholder:text-muted/50 focus:outline-none focus:border-terracotta transition-colors"
-                />
-                <button type="submit" className="px-3 py-2 bg-charcoal text-background text-xs hover:bg-terracotta transition-colors">
-                  <Bell className="w-3 h-3" />
-                </button>
-                <button type="button" onClick={() => setNotifyOpen(false)} className="px-2 text-muted/60 hover:text-muted">
-                  <X className="w-3 h-3" />
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={notifyEmail}
+                    onChange={e => setNotifyEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    className="flex-1 min-w-0 px-3 py-2 border border-charcoal/15 bg-background text-xs font-sans text-charcoal placeholder:text-muted/50 focus:outline-none focus:border-terracotta transition-colors"
+                  />
+                  <button type="submit" className="px-3 py-2 bg-charcoal text-background text-xs hover:bg-terracotta transition-colors">
+                    <Bell className="w-3 h-3" />
+                  </button>
+                  <button type="button" onClick={() => setNotifyOpen(false)} className="px-2 text-muted/60 hover:text-muted">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                {notifyError && <p className="text-xs text-red-500 mt-1">{notifyError}</p>}
               </motion.form>
             ) : (
               <motion.button

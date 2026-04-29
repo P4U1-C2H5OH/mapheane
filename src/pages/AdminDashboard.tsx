@@ -26,6 +26,7 @@ import { WorkshopsManager }   from '../components/admin/WorkshopsManager';
 import { AdminSettings }       from '../components/admin/AdminSettings';
 import { ShopManager }        from '../components/admin/ShopManager';
 import { EngagementSignals }  from '../components/admin/EngagementSignals';
+import { AvailabilityRequests } from '../components/admin/AvailabilityRequests';
 
 interface AdminDashboardProps {
   onNavigate: (page: any) => void;
@@ -34,7 +35,7 @@ interface AdminDashboardProps {
 export type AdminView =
   | 'command' | 'gallery' | 'shop' | 'moments' | 'events'
   | 'orders' | 'messages' | 'collectors' | 'commissions'
-  | 'analytics' | 'engagement' | 'marketing' | 'readiness' | 'workshops'
+  | 'analytics' | 'engagement' | 'marketing' | 'readiness' | 'workshops' | 'waitlist'
   | 'settings';
 
 interface NavItem {
@@ -50,6 +51,7 @@ const NAV: NavItem[] = [
   { id: 'analytics',  label: 'Revenue',         icon: BarChart3,       group: 'main' },
   { id: 'engagement', label: 'Engagement',      icon: Zap,             group: 'main' },
   { id: 'collectors', label: 'Collectors',      icon: Users,           group: 'main', badge: 'CRM' },
+  { id: 'waitlist',   label: 'Waitlist',        icon: Bell,            group: 'main' },
   { id: 'commissions',label: 'Commissions',     icon: GitBranch,       group: 'main' },
   { id: 'gallery',    label: 'Gallery',         icon: Image,           group: 'studio' },
   { id: 'shop',       label: 'Shop',            icon: ShoppingBag,     group: 'studio' },
@@ -75,6 +77,7 @@ function renderView(view: AdminView, onNav: (v: AdminView) => void) {
     case 'analytics':   return <RevenueAnalytics />;
     case 'engagement':  return <EngagementSignals />;
     case 'collectors':  return <CollectorCRM />;
+    case 'waitlist':    return <AvailabilityRequests />;
     case 'commissions': return <CommissionPipeline />;
     case 'gallery':     return <GalleryManager />;
     case 'shop':        return <ShopManager />;
@@ -97,7 +100,7 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [sidebarOpen, setSidebar] = useState(true);
   const [mobileOpen, setMobile]   = useState(false);
   const [isMobile, setIsMobile]   = useState(false);
-  const [liveBadges, setLiveBadges] = useState({ orders: 0, messages: 0, commissions: 0 });
+  const [liveBadges, setLiveBadges] = useState({ orders: 0, messages: 0, commissions: 0, waitlist: 0 });
   const { user, logout, authLoading } = useAuth();
 
   useEffect(() => {
@@ -115,16 +118,18 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     if (authLoading || user?.role !== 'admin') return;
 
     async function fetchBadges() {
-      const [orders, messages, commissions] = await Promise.all([
+      const [orders, messages, commissions, waitlist] = await Promise.all([
         supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('messages').select('*', { count: 'exact', head: true }).eq('status', 'unread'),
         supabase.from('commissions').select('*', { count: 'exact', head: true })
           .not('stage', 'in', '("complete","cancelled")'),
+        supabase.from('availability_requests').select('*', { count: 'exact', head: true }).eq('status', 'new'),
       ]);
       setLiveBadges({
         orders:      orders.count      ?? 0,
         messages:    messages.count    ?? 0,
         commissions: commissions.count ?? 0,
+        waitlist:    waitlist.count    ?? 0,
       });
     }
     fetchBadges();

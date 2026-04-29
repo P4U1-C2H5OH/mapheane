@@ -10,7 +10,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useToast } from '../context/ToastContext';
 import { LightboxModal } from '../components/LightboxModal';
 import { CommissionModal } from '../components/CommissionModal';
-import { trackInteraction } from '../lib/interactions';
+import { currentInteractionPage, getVisitorId, trackInteraction } from '../lib/interactions';
 
 interface ArtworkPageProps {
   artworkId: string;
@@ -56,6 +56,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
   const [notifyEmail, setNotifyEmail]   = useState('');
   const [notifySent, setNotifySent]     = useState(false);
   const [notifyOpen, setNotifyOpen]     = useState(false);
+  const [notifyError, setNotifyError]   = useState('');
 
   useEffect(() => { window.scrollTo(0, 0); setActiveImg(0); setSelectedSlot('original'); }, [artworkId]);
 
@@ -132,24 +133,32 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
     if (adding) wishlisted(`"${artwork.title}" saved`);
   };
 
-  const handleNotify = (e: React.FormEvent) => {
+  const handleNotify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notifyEmail) return;
-    const key = `notify_${artwork.id}`;
-    const existing = JSON.parse(localStorage.getItem(key) || '[]') as string[];
-    if (!existing.includes(notifyEmail)) {
-      localStorage.setItem(key, JSON.stringify([...existing, notifyEmail]));
+    const email = notifyEmail;
+    setNotifyError('');
+    try {
+      const res = await fetch('/api/interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'notify_request',
+          targetType: 'artwork',
+          targetId: artwork.id,
+          targetTitle: artwork.title,
+          source: 'artwork_detail',
+          visitorId: getVisitorId(),
+          page: currentInteractionPage(),
+          metadata: { email, artworkTitle: artwork.title },
+        }),
+      });
+      if (!res.ok) throw new Error('Unable to save request');
+      setNotifySent(true);
+      setNotifyEmail('');
+    } catch {
+      setNotifyError('Unable to save your request. Please try again.');
     }
-    trackInteraction({
-      action: 'notify_request',
-      targetType: 'artwork',
-      targetId: artwork.id,
-      targetTitle: artwork.title,
-      source: 'artwork_detail',
-      metadata: { email: notifyEmail },
-    });
-    setNotifySent(true);
-    setNotifyEmail('');
   };
 
   const handleShare = async () => {
@@ -460,6 +469,7 @@ export function ArtworkPage({ artworkId, onNavigate }: ArtworkPageProps) {
                         <button type="button" onClick={() => setNotifyOpen(false)} className="w-full text-xs text-muted/60 hover:text-muted py-1">
                           Cancel
                         </button>
+                        {notifyError && <p className="text-xs text-red-500 text-center">{notifyError}</p>}
                       </form>
                     ) : (
                       <button
