@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Mail, Send, Users, TrendingUp, Eye, MousePointer,
-  Clock, Plus, Star, Tag, Zap, Heart, Calendar, Check
+  Mail, Send, Users, Eye, MousePointer,
+  Clock, Plus, Star, Zap, Heart, Calendar, Check, AlertCircle
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -12,36 +12,16 @@ interface Campaign {
   id: string;
   subject: string;
   type: 'New Work' | 'Studio Update' | 'Collector Preview' | 'Workshop' | 'Events';
-  status: 'draft' | 'scheduled' | 'sent';
+  status: 'draft' | 'queued' | 'scheduled' | 'sent';
   audience: string;
   sentTo?: number;
+  recipientCount?: number;
   openRate?: number;
   clickRate?: number;
   scheduledFor?: string;
   sentAt?: string;
+  body?: string;
 }
-
-const INITIAL_CAMPAIGNS: Campaign[] = [
-  {
-    id: 'C1', subject: '"Ce Père Idéal" — New Work Available',
-    type: 'New Work', status: 'sent', audience: 'All subscribers',
-    sentTo: 312, openRate: 48, clickRate: 18, sentAt: '3 days ago',
-  },
-  {
-    id: 'C2', subject: 'Collectors: First Look — July Collection',
-    type: 'Collector Preview', status: 'sent', audience: 'Collectors + VIP',
-    sentTo: 28, openRate: 71, clickRate: 39, sentAt: '1 week ago',
-  },
-  {
-    id: 'C3', subject: 'Studio Notes: July in the Mountain Kingdom',
-    type: 'Studio Update', status: 'scheduled', audience: 'All subscribers',
-    scheduledFor: 'Aug 5, 10:00 AM',
-  },
-  {
-    id: 'C4', subject: 'Workshop — Hands in Clay, September 14',
-    type: 'Workshop', status: 'draft', audience: 'Workshop alumni + subscribers',
-  },
-];
 
 const SEGMENT_TEMPLATES = [
   { key: 'vip',         name: 'VIP Collectors',    desc: 'Spent R18k+, 2+ purchases', color: '#A0522D', audience: 'Collectors + VIP' },
@@ -178,6 +158,7 @@ const INTENSITY_STYLES = {
 
 const STATUS_STYLES: Record<string, string> = {
   sent:      'bg-sage/12 text-sageDark',
+  queued:    'bg-terracotta/10 text-terracotta',
   scheduled: 'bg-gold/15 text-charcoalLight',
   draft:     'bg-charcoal/8 text-muted',
 };
@@ -189,55 +170,54 @@ const AUDIENCE_OPTIONS = [
 
 export function MarketingHub() {
   const [tab, setTab]             = useState<Tab>('campaigns');
-  const [campaigns, setCampaigns] = useState<Campaign[]>(INITIAL_CAMPAIGNS);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [composing, setComposing] = useState(false);
   const [newCampaign, setNew]     = useState({
     subject: '', type: 'Studio Update' as Campaign['type'],
     audience: 'All subscribers', body: '', editingId: '',
   });
   const [sent, setSent]           = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
   const [counts, setCounts]       = useState<Record<string, number>>({
     vip: 0, collectors: 0, workshops: 0, wishlist: 0, newsletter: 0, subscribers: 0, press: 0,
   });
 
   useEffect(() => {
     async function load() {
-      const [vip, collectors, workshops, subscribers, press, campaignRows] = await Promise.all([
-        supabase.from('collectors').select('*', { count: 'exact', head: true }).gte('ltv_zar', 18000),
-        supabase.from('collectors').select('*', { count: 'exact', head: true }).gt('ltv_zar', 0),
-        supabase.from('workshop_bookings').select('*', { count: 'exact', head: true }).neq('status', 'cancelled'),
-        supabase.from('newsletter_subscribers').select('*', { count: 'exact', head: true }).eq('status', 'subscribed'),
-        supabase.from('messages').select('*', { count: 'exact', head: true }).eq('type', 'Press'),
-        supabase.from('campaigns').select('*').order('created_at', { ascending: false }),
-      ]);
-      setCounts(prev => ({
-        ...prev,
-        ...(() => {
-          const collectorCount = collectors.count ?? prev.collectors;
-          const subscriberCount = subscribers.count ?? prev.subscribers;
-          return {
-            vip:        vip.count        ?? prev.vip,
-            collectors: collectorCount,
-            workshops:  workshops.count  ?? prev.workshops,
-            newsletter: Math.max(subscriberCount - collectorCount, 0),
-            subscribers: subscriberCount,
-            press:      press.count      ?? prev.press,
-          };
-        })(),
-      }));
-      if (campaignRows.data?.length) {
-        setCampaigns(campaignRows.data.map(r => ({
-          id:           r.id,
-          subject:      r.subject,
-          type:         r.type as Campaign['type'],
-          status:       r.status as Campaign['status'],
-          audience:     r.audience,
-          sentTo:       r.sent_to ?? undefined,
-          openRate:     r.open_rate ?? undefined,
-          clickRate:    r.click_rate ?? undefined,
-          scheduledFor: r.scheduled_for ?? undefined,
-          sentAt:       r.sent_at ?? undefined,
+      setLoading(true);
+      setError('');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error('Admin session expired. Please sign in again.');
+
+        const res = await fetch('/api/campaigns', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || 'Unable to load campaigns.');
+
+        setCounts(prev => ({ ...prev, ...(json.counts ?? {}) }));
+        setCampaigns((json.campaigns ?? []).map((r: any) => ({
+          id:             r.id,
+          subject:        r.subject,
+          type:           r.type as Campaign['type'],
+          status:         r.status as Campaign['status'],
+          audience:       r.audience,
+          sentTo:         r.sent_to ?? undefined,
+          recipientCount: r.recipient_count ?? r.sent_to ?? undefined,
+          openRate:       r.open_rate ?? undefined,
+          clickRate:      r.click_rate ?? undefined,
+          scheduledFor:   r.scheduled_for ?? undefined,
+          sentAt:         r.sent_at ?? undefined,
+          body:           r.body ?? '',
         })));
+      } catch (err) {
+        console.error('MarketingHub load error:', err);
+        setError(err instanceof Error ? err.message : 'Unable to load campaigns.');
+      } finally {
+        setLoading(false);
       }
     }
     load();
@@ -263,37 +243,62 @@ export function MarketingHub() {
   };
 
   const handleSend = async () => {
+    setSaving(true);
+    setError('');
     const isEditing = Boolean(newCampaign.editingId);
     const id = newCampaign.editingId || `C${Date.now()}`;
     const updated: Campaign = {
       id,
       subject: newCampaign.subject.trim() || 'Untitled draft',
       type: newCampaign.type,
-      status: 'draft',
+      status: 'queued',
       audience: newCampaign.audience,
+      body: newCampaign.body,
     };
-    // Optimistic update
-    setCampaigns(prev =>
-      isEditing
-        ? prev.map(c => c.id === newCampaign.editingId ? updated : c)
-        : [updated, ...prev]
-    );
-    // Persist to Supabase
-    supabase.from('campaigns').upsert({
-      id,
-      subject:     updated.subject,
-      type:        updated.type,
-      status:      updated.status,
-      audience:    updated.audience,
-      body:        newCampaign.body || null,
-      updated_at:  new Date().toISOString(),
-    }, { onConflict: 'id' });
-    setSent(true);
-    setTimeout(() => {
-      setSent(false);
-      setComposing(false);
-      setNew({ subject: '', type: 'Studio Update', audience: 'All subscribers', body: '', editingId: '' });
-    }, 2000);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Admin session expired. Please sign in again.');
+
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          id,
+          subject: updated.subject,
+          type: updated.type,
+          status: updated.status,
+          audience: updated.audience,
+          body: newCampaign.body,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Unable to queue campaign.');
+
+      const saved: Campaign = {
+        ...updated,
+        recipientCount: json.campaign?.recipient_count ?? 0,
+        sentTo: json.campaign?.recipient_count ?? 0,
+      };
+      setCampaigns(prev =>
+        isEditing
+          ? prev.map(c => c.id === newCampaign.editingId ? saved : c)
+          : [saved, ...prev]
+      );
+      setSent(true);
+      setTimeout(() => {
+        setSent(false);
+        setComposing(false);
+        setNew({ subject: '', type: 'Studio Update', audience: 'All subscribers', body: '', editingId: '' });
+      }, 2000);
+    } catch (err) {
+      console.error('Campaign save error:', err);
+      setError(err instanceof Error ? err.message : 'Unable to queue campaign.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -312,6 +317,13 @@ export function MarketingHub() {
           <Plus className="w-3.5 h-3.5" /> New Campaign
         </button>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 bg-terracotta/10 border border-terracotta/20 text-terracotta px-4 py-3 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
@@ -352,6 +364,17 @@ export function MarketingHub() {
         {tab === 'campaigns' && (
           <motion.div key="campaigns" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="space-y-3">
+            {loading && (
+              <div className="bg-background border border-charcoal/8 p-8 text-center text-sm text-muted">
+                Loading campaigns…
+              </div>
+            )}
+            {!loading && campaigns.length === 0 && (
+              <div className="bg-background border border-charcoal/8 p-8 text-center">
+                <p className="font-serif italic text-xl text-charcoal mb-1">No campaigns yet</p>
+                <p className="text-sm text-muted">Create one to prepare a real recipient queue from the current audience data.</p>
+              </div>
+            )}
             {campaigns.map(c => (
               <div key={c.id} className="bg-background border border-charcoal/8 p-5 flex flex-col md:flex-row md:items-center gap-4">
                 <div className="flex-1 min-w-0">
@@ -387,9 +410,15 @@ export function MarketingHub() {
                     {c.scheduledFor}
                   </div>
                 )}
+                {c.status === 'queued' && (
+                  <div className="flex items-center gap-2 text-xs text-terracotta flex-shrink-0">
+                    <Mail className="w-3.5 h-3.5" />
+                    {c.recipientCount ?? c.sentTo ?? 0} queued
+                  </div>
+                )}
                 {c.status === 'draft' && (
                   <button
-                    onClick={() => openCompose({ subject: c.subject, type: c.type, audience: c.audience, editingId: c.id })}
+                    onClick={() => openCompose({ subject: c.subject, type: c.type, audience: c.audience, body: c.body ?? '', editingId: c.id })}
                     className="text-xs font-sans uppercase tracking-widest text-muted hover:text-terracotta transition-colors border border-charcoal/15 px-3 py-1.5 hover:border-terracotta/30 flex-shrink-0">
                     Continue editing
                   </button>
@@ -454,7 +483,7 @@ export function MarketingHub() {
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="text-xs text-muted">% of list</p>
-                    <p className="text-sm text-charcoal">{Math.round((seg.count / totalSubs) * 100)}%</p>
+                    <p className="text-sm text-charcoal">{totalSubs ? Math.round((seg.count / totalSubs) * 100) : 0}%</p>
                   </div>
                   <button
                     onClick={() => openCompose({ audience: seg.audience })}
@@ -547,8 +576,9 @@ export function MarketingHub() {
                       <Check className="w-6 h-6 text-sage" />
                     </div>
                     <p className="font-serif italic text-xl text-charcoal">
-                      {newCampaign.editingId ? 'Draft updated' : 'Campaign saved as draft'}
+                      {newCampaign.editingId ? 'Campaign queue updated' : 'Campaign queued'}
                     </p>
+                    <p className="text-xs text-muted mt-2">Recipient snapshot prepared. Email sending stays off until the domain is ready.</p>
                   </div>
                 ) : (
                   <>
@@ -600,9 +630,9 @@ export function MarketingHub() {
                         </div>
                       </div>
                       <div className="flex gap-3 pt-2">
-                        <button onClick={handleSend}
+                        <button onClick={handleSend} disabled={saving}
                           className="flex-1 flex items-center justify-center gap-2 bg-terracotta text-background py-3 text-xs font-sans uppercase tracking-widest hover:bg-terracottaDark transition-colors">
-                          <Send className="w-3.5 h-3.5" /> Save as Draft
+                          <Send className="w-3.5 h-3.5" /> {saving ? 'Preparing…' : 'Queue Campaign'}
                         </button>
                         <button onClick={() => setComposing(false)}
                           className="px-4 py-3 border border-charcoal/15 text-xs font-sans uppercase tracking-widest text-muted hover:border-charcoal/30 hover:text-charcoal transition-all">
