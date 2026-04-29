@@ -19,6 +19,7 @@ interface CertData {
   collectorName: string;
   date: string;
   classification?: string;
+  artistName?: string;
 }
 
 // Shown when navigated to without a ref (e.g. from PressKit as a preview)
@@ -33,6 +34,7 @@ const PREVIEW: CertData = {
   collectorName: '[Collector Name]',
   date: 'March 2026',
   classification: 'Original Artwork',
+  artistName: 'Mapheane',
 };
 
 export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) {
@@ -60,6 +62,26 @@ export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) 
   }, [orderRef]);
 
   const handlePrint = () => window.print();
+  const handleDownloadPdf = async () => {
+    if (!orderRef || !cert) {
+      handlePrint();
+      return;
+    }
+    const res = await fetch(`/api/certificate-pdf?ref=${encodeURIComponent(orderRef)}`);
+    if (!res.ok) {
+      handlePrint();
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${cert.ref}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const isPreview = !orderRef;
 
@@ -92,7 +114,7 @@ export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) 
                   className="flex items-center gap-2 px-5 py-3 border border-charcoal/15 text-xs font-sans uppercase tracking-widest text-muted hover:border-charcoal/40 hover:text-charcoal transition-all duration-300">
                   <Printer className="w-4 h-4" /> Print
                 </button>
-                <button onClick={handlePrint}
+                <button onClick={handleDownloadPdf}
                   className="flex items-center gap-2 px-5 py-3 bg-charcoal text-background text-xs font-sans uppercase tracking-widest hover:bg-terracotta transition-colors duration-400">
                   <Download className="w-4 h-4" /> Save PDF
                 </button>
@@ -217,7 +239,7 @@ export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) 
                   <div>
                     <div className="h-14 flex items-end pb-2 border-b border-charcoal/20 mb-2">
                       <span className="font-serif italic text-3xl text-charcoal/40" style={{ letterSpacing: '-0.01em' }}>
-                        Mapheane
+                        {cert.artistName ?? 'Mapheane'}
                       </span>
                     </div>
                     <p className="text-label uppercase tracking-[0.2em] text-muted/50" style={{ fontFamily: 'DM Sans, sans-serif' }}>

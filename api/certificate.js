@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { trackLimit, getIp } = require('./_lib/ratelimit');
+const { loadCertificate } = require('./_lib/certificate');
 
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN ?? 'https://mapheane.art').trim();
 
@@ -15,16 +16,6 @@ function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   return allowed;
-}
-
-function formatIssueDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function joinParts(parts) {
-  return parts.filter(Boolean).join(' · ');
 }
 
 async function handler(req, res) {
@@ -55,55 +46,10 @@ async function handler(req, res) {
       process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY
     );
 
-    const { data: row, error } = await supabase
-      .from('orders')
-      .select('ref, status, customer, cart_items, created_at')
-      .eq('ref', ref)
-      .single();
+    const result = await loadCertificate(supabase, ref);
+    if (result.error) return res.status(result.status ?? 500).json({ error: result.error });
 
-    if (error || !row) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    if (row.status === 'cancelled' || row.status === 'pending') {
-      return res.status(404).json({ error: 'Certificate not available for this order' });
-    }
-
-    const first = (row.cart_items ?? [])[0];
-    let artwork = first?.artwork ?? {};
-    const edition = first?.edition;
-    const artworkId = artwork.id ?? edition?.artworkId ?? edition?.artwork_id;
-
-    if (artworkId && (!artwork.dimensions || !artwork.year || (!artwork.technique && !artwork.medium))) {
-      const { data: fallbackArtwork, error: fallbackError } = await supabase
-        .from('artworks')
-        .select('id, title, medium, technique, dimensions, year')
-        .eq('id', artworkId)
-        .maybeSingle();
-      if (!fallbackError && fallbackArtwork) {
-        artwork = { ...fallbackArtwork, ...artwork };
-      }
-    }
-
-    const editionLabel = edition
-      ? joinParts([edition.type, edition.size, edition.paper])
-      : 'Original · One of a kind';
-    const medium = edition?.medium ?? artwork.technique ?? artwork.medium ?? first?.medium ?? '—';
-    const dimensions = edition?.size ?? artwork.dimensions ?? '—';
-    const year = edition?.year ?? artwork.year ?? new Date(row.created_at).getFullYear();
-
-    res.status(200).json({
-      title:         edition?.title        ?? artwork.title ?? first?.title ?? 'Untitled',
-      medium,
-      dimensions,
-      year:          String(year),
-      edition:       editionLabel,
-      classification: edition ? 'Print Edition' : 'Original Artwork',
-      ref:           `COA-${row.ref.replace('MAP-', '')}`,
-      orderRef:      row.ref,
-      collectorName: row.customer?.name    ?? '—',
-      date:          formatIssueDate(row.created_at),
-    });
+    res.status(200).json(result.certificate);
   } catch (err) {
     console.error('Certificate error:', err);
     res.status(500).json({ error: 'Unable to load certificate. Please try again.' });

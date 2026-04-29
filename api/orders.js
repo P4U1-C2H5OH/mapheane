@@ -248,6 +248,20 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to save order. Please contact hello@mapheane.art.' });
     }
 
+    const originalArtworkIds = normalizedItems
+      .filter(item => !item.edition && item.artwork?.id)
+      .map(item => item.artwork.id);
+    if (originalArtworkIds.length > 0) {
+      const { error: soldError } = await supabase
+        .from('artworks')
+        .update({ status: 'Sold' })
+        .in('id', [...new Set(originalArtworkIds)]);
+      if (soldError) {
+        console.error('Artwork sold status update error:', soldError);
+        return res.status(500).json({ error: 'Order saved, but artwork availability could not be updated. Please contact hello@mapheane.art.' });
+      }
+    }
+
     try {
       if (!resend) throw new Error('Resend API key is not configured');
       const itemList = normalizedItems
