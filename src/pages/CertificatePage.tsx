@@ -67,7 +67,7 @@ export function CertificatePage({ onNavigate, orderRef }: CertificatePageProps) 
       handlePrint();
       return;
     }
-    const res = await fetch(`/api/certificate-pdf?ref=${encodeURIComponent(orderRef)}`);
+    const res = await fetch(`/api/certificate?ref=${encodeURIComponent(orderRef)}&format=pdf`);
     if (!res.ok) {
       handlePrint();
       return;
